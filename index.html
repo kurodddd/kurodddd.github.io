@@ -1,0 +1,2255 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>黑波 - お店の検索サイト</title>
+    <!-- Tailwind CSS CDNを読み込み -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        // Tailwind CSSのカスタム設定
+        // 主にカラーパレットとフォントファミリーを定義し、アクセシビリティを考慮した色を選択
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        // Interフォントを使用（グローバル設定として推奨）
+                        inter: ['Inter', 'sans-serif'],
+                    },
+                    colors: {
+                        // セマンティックカラーパレットを定義
+                        // コントラスト比を重視し、WCAG 2.1 AAレベル（最低4.5:1）以上を目標に選定
+                        // ボタンには透明や白を使用せず、視認性の高いカラフルな色を厳選
+                        primary: '#2B2480', /* 深い藍色 */
+                        secondary: '#4B5563', /* 濃いめのグレー */
+                        accent: '#027A48', /* 深い緑色 */
+                        danger: '#C02B2B', /* 濃い赤色 */
+                        info: '#1E40AF', /* 鮮やかな青色 */
+
+                        // 基本背景色とテキスト色
+                        bgLight: '#F8FAFC', /* 明るい背景色 */
+                        bgDark: '#1A202C', /* ダークなヘッダー/フッター色 */
+                        cardBg: '#FFFFFF', /* カードの背景色 */
+                        textPrimary: '#1F2937', /* メインテキスト色 */
+                        textSecondary: '#6B7280', /* セカンダリテキスト色 */
+                        borderLight: '#D1D5DB', /* ボーダー色 */
+
+                        // ボタン専用カラーパレット (透明・白は不使用、コントラスト強化)
+                        // 緑系のボタンは特に彩度を上げて視認性を確保
+                        btnMain: '#312E81',     /* Main: 深い紫 (Indigo-800相当) */
+                        btnNeutral: '#2D3748',  /* Neutral: さらに濃いダークグレー (Gray-800) */
+                        btnPositive: '#059669', /* Positive: 鮮やかな緑 (Emerald-600) - 文字（白）とのコントラスト強化 */
+                        btnWarning: '#D97706',  /* Warning: 濃いオレンジ (Amber-700相当) */
+                        btnDanger: '#DC2626',   /* Danger: 鮮やかな赤 (Red-600) */
+                        btnInfo: '#2563EB',     /* Info: 標準的な青 (Blue-600) */
+                        btnSpecial: '#F59E0B',  /* Special (Ranking, Details): 明るめのオレンジ (Amber-500) - 視認性を重視 */
+
+                        // ハートボタンの背景色（視認性強化）
+                        heartLikedBg: '#EF4444',    /* 押されたハート: よりはっきりとした赤 (Red-500) */
+                        heartUnlikedBg: '#9CA3AF',  /* 押されていないハート: 中間のグレー (Gray-400) - 視認性UP */
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        /* グローバルなボディスタイル */
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--bgLight); /* より明るい背景色 */
+            line-height: 1.6; /* 行間を広げ、読みやすくする */
+            font-size: 16px; /* 基本フォントサイズを設定 */
+            color: var(--textPrimary); /* 主要なテキスト色 */
+        }
+
+        /* キーボードフォーカス時のアウトラインを明確にする（バリアフリー対応） */
+        /* すべてのインタラクティブ要素に適用 */
+        *:focus {
+            outline: 4px solid var(--btnInfo); /* Infoカラーで太いアウトライン */
+            outline-offset: 3px; /* アウトラインと要素の間にスペース */
+            border-radius: 8px; /* 角丸にする */
+            transition: none; /* フォーカス時にも変化なし */
+        }
+
+        /* ショップリストコンテナのカスタムスクロールバー */
+        .shop-list-container::-webkit-scrollbar {
+            width: 10px; /* スクロールバーの幅を少し広げる */
+        }
+        .shop-list-container::-webkit-scrollbar-track {
+            background: #E0E7FF; /* Blue-100 */
+            border-radius: 10px;
+        }
+        .shop-list-container::-webkit-scrollbar-thumb {
+            background: var(--btnInfo); /* Infoカラーに合わせる */
+            border-radius: 10px;
+        }
+        .shop-list-container::-webkit-scrollbar-thumb:hover {
+            background: #3B82F6; /* Blue-500 */
+        }
+
+        /* モーダルオーバーレイのスタイル */
+        .modal-overlay {
+            background-color: rgba(0, 0, 0, 0.8); /* さらに濃い半透明の暗い背景 */
+        }
+
+        /* 固定検索セクションと縮小効果 */
+        .fixed-search-section {
+            position: sticky;
+            top: 0;
+            z-index: 20;
+            transition: all 0.3s ease;
+            padding: 1.5rem;
+            background-color: var(--cardBg);
+            border-bottom: 1px solid var(--borderLight); /* 明るいボーダー */
+            box-shadow: 0 4px 10px rgba(0,0,0,0.1); /* より強い影 */
+            border-radius: 0 0 1rem 1rem; /* 下部のみ角丸 */
+        }
+
+        .fixed-search-section.shrunk {
+            padding-top: 0.75rem;
+            padding-bottom: 0.75rem;
+            background-color: #F1F5F9; /* Slate-100 */
+            box-shadow: 0 2px 8px rgba(0,0,0,0.15); /* 縮小時も影を維持 */
+            border-radius: 0 0 0.5rem 0.5rem;
+        }
+
+        .fixed-search-section.shrunk h2 {
+            font-size: 1.125rem; /* text-lg */
+            margin-bottom: 0.25rem;
+            opacity: 0.9;
+        }
+
+        .fixed-search-section.shrunk .grid {
+            grid-template-columns: repeat(auto-fit, minmax(80px, 1fr)); /* 縮小時のグリッド調整 */
+            gap: 0.5rem;
+        }
+
+        .fixed-search-section.shrunk .flex.items-center {
+            margin-top: 0.25rem;
+            flex-wrap: wrap;
+        }
+
+        .fixed-search-section.shrunk label {
+            font-size: 0.7rem;
+        }
+
+        .fixed-search-section.shrunk select,
+        .fixed-search-section.shrunk input[type="text"] {
+            padding: 0.25rem 0.5rem;
+            font-size: 0.75rem;
+        }
+
+        .fixed-search-section.shrunk #actionButtons {
+            display: none;
+        }
+
+        /* オートコンプリート候補のスタイル */
+        .autocomplete-suggestions {
+            border: 1px solid var(--borderLight);
+            background: var(--cardBg);
+            overflow: auto;
+            max-height: 200px; /* 少し高さを増やす */
+            position: absolute;
+            z-index: 100;
+            width: calc(100% - 2px);
+            box-shadow: 0 6px 12px rgba(0,0,0,0.1); /* より強い影 */
+            border-radius: 0 0 8px 8px;
+        }
+
+        .autocomplete-suggestion {
+            padding: 12px 16px; /* パディングを増やす */
+            cursor: pointer;
+            transition: none; /* ホバー時の変化をなくす */
+            font-size: 1rem;
+            color: var(--textPrimary);
+        }
+
+        .autocomplete-suggestion:hover,
+        .autocomplete-suggestion.selected {
+            background-color: #E2E8F0; /* Slate-200 */
+            color: var(--textPrimary);
+        }
+
+        /* レビューセクション（非表示）のスタイル */
+        .reviews-section.hidden {
+            display: none;
+        }
+
+        /* ハートボタンのスタイル (ホバー時の変化なし、色調整) */
+        .heart-button {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px; /* ギャップを広げる */
+            padding: 12px 20px; /* パディングを増やす */
+            border-radius: 12px; /* より丸く */
+            font-weight: 700; /* Font bold */
+            transition: none; /* ホバー時の変化をなくす */
+            cursor: pointer;
+            width: fit-content;
+            font-size: 1.05rem; /* フォントサイズを少し大きく */
+            box-shadow: 0 4px 8px rgba(0,0,0,0.15); /* より強い影 */
+            min-width: 130px; /* 最小幅を確保 */
+            border: 2px solid transparent; /* ホバー時のボーダーに備える */
+            color: white; /* テキスト色は常に白 */
+        }
+
+        .heart-button.liked {
+            background-color: var(--heartLikedBg); /* 押されたハートの赤 */
+            border-color: var(--heartLikedBg);
+        }
+
+        .heart-button.unliked {
+            background-color: var(--heartUnlikedBg); /* 押されていないハートのグレー */
+            border-color: var(--heartUnlikedBg);
+        }
+
+        .heart-icon {
+            font-size: 1.5rem; /* アイコンサイズを大きく */
+            line-height: 1;
+        }
+
+        /* ランキングテーブルのスタイル */
+        .ranking-table {
+            width: 100%;
+            border-collapse: separate;
+            border-spacing: 0;
+            margin-top: 20px;
+            overflow: hidden;
+            border-radius: 12px; /* より丸く */
+            box-shadow: 0 6px 15px -3px rgba(0,0,0,0.15); /* より強い影 */
+        }
+
+        .ranking-table th, .ranking-table td {
+            padding: 14px 20px; /* パディングを増やす */
+            text-align: left;
+            border-bottom: 1px solid #E5E7EB; /* Gray-200 */
+            font-size: 0.95rem;
+        }
+
+        .ranking-table thead th {
+            background-color: var(--bgDark);
+            color: white;
+            font-weight: 600;
+            text-transform: uppercase;
+            font-size: 0.9rem;
+            letter-spacing: 0.05em; /* 文字間隔を広げる */
+        }
+
+        .ranking-table tbody tr:last-child td {
+            border-bottom: none;
+        }
+
+        .ranking-table tbody tr:nth-child(even) {
+            background-color: #F8F9FA; /* Even lighter gray */
+        }
+
+        .ranking-table tbody tr:hover {
+            background-color: #EBF4FF; /* Light Blue for hover */
+        }
+
+        /* 一般的なボタンのスタイル (ホバー時の変化なし) */
+        .btn {
+            font-weight: 600; /* Semi-bold */
+            padding: 0.75rem 1.5rem; /* py-3 px-6 相当に増やす */
+            border-radius: 0.75rem; /* rounded-xl 相当に増やす */
+            box-shadow: 0 4px 10px rgba(0,0,0,0.1); /* より強い影 */
+            transition: none; /* ホバー時の変化をなくす */
+            cursor: pointer;
+            white-space: nowrap;
+            display: inline-flex; /* flexにしてアイコンなどを中央揃えしやすく */
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem; /* アイコンとテキストの間隔 */
+            border: 2px solid transparent; /* コントラスト確保のため */
+            color: white; /* テキスト色は常に白 */
+        }
+
+        /* ボタンカラーの適用 (より濃く、視認性を高く) */
+        .btn-main {
+            background-color: var(--btnMain);
+            border-color: var(--btnMain);
+        }
+        .btn-neutral {
+            background-color: var(--btnNeutral);
+            border-color: var(--btnNeutral);
+        }
+        .btn-positive {
+            background-color: var(--btnPositive);
+            border-color: var(--btnPositive);
+        }
+        .btn-warning {
+            background-color: var(--btnWarning);
+            border-color: var(--btnWarning);
+        }
+        .btn-danger-red { /* 衝突を避けるために名前変更 */
+            background-color: var(--btnDanger);
+            border-color: var(--btnDanger);
+        }
+        .btn-info-blue { /* 衝突を避けるために名前変更 */
+            background-color: var(--btnInfo);
+            border-color: var(--btnInfo);
+        }
+        .btn-special {
+            background-color: var(--btnSpecial);
+            border-color: var(--btnSpecial);
+        }
+
+        /* カードのスタイル */
+        .card {
+            background-color: var(--cardBg);
+            border-radius: 1rem; /* rounded-2xl 相当に増やす */
+            box-shadow: 0 12px 25px -5px rgba(0,0,0,0.12), 0 6px 10px -3px rgba(0,0,0,0.08); /* より強い影 */
+            padding: 2rem; /* p-8 相当に増やす */
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            transition: none; /* ホバー時の変化をなくす */
+            transform: scale(1);
+            border: 1px solid #E0E7EB; /* Subtle border for definition */
+        }
+
+        /* パスワード入力モーダル専用のスタイル */
+        #passwordPromptModal .modal-content {
+            background-color: var(--cardBg);
+            padding: 2.5rem;
+            border-radius: 1rem;
+            box-shadow: 0 15px 30px rgba(0,0,0,0.3);
+            max-width: 450px; /* 少し広げる */
+            width: 90%;
+            text-align: center;
+        }
+        #passwordPromptModal input[type="password"] {
+            margin-top: 1.5rem; /* マージンを増やす */
+            margin-bottom: 1.5rem;
+            padding: 0.85rem; /* パディングを増やす */
+            border: 2px solid var(--borderLight); /* ボーダーを太く */
+            border-radius: 0.6rem;
+            width: 100%;
+            font-size: 1.1rem; /* フォントサイズを大きく */
+            text-align: center;
+            color: var(--textPrimary);
+            background-color: #F9FAFB; /* Light input background */
+        }
+        #passwordPromptModal input[type="password"]:focus {
+             border-color: var(--primary); /* フォーカス時に色を変える */
+             box-shadow: 0 0 0 3px rgba(63, 53, 194, 0.3); /* Primary color shadow */
+        }
+        #passwordPromptModal .message {
+            color: var(--danger);
+            margin-top: 0.75rem; /* マージンを増やす */
+            font-size: 1rem; /* フォントサイズを大きく */
+            min-height: 1.8rem; /* メッセージが表示されない時も高さを確保 */
+            font-weight: 500;
+        }
+    </style>
+</head>
+<body class="flex flex-col min-h-screen antialiased text-textPrimary">
+    <!-- ヘッダーセクション -->
+    <header class="bg-bgDark text-white p-4 shadow-lg z-30">
+        <div class="container mx-auto flex justify-between items-center flex-wrap gap-3 py-2">
+            <!-- サイトタイトル -->
+            <h1 class="text-3xl font-bold">黑波 <span class="text-base font-normal opacity-80">（お店の検索サイト）</span></h1>
+            <!-- 右上の情報とナビゲーションボタン -->
+            <div class="flex items-center space-x-4 flex-wrap gap-2">
+                <!-- 管理者モードインジケーター -->
+                <div id="adminModeIndicator" class="text-yellow-400 font-bold text-base hidden bg-yellow-800 px-3 py-1 rounded-full">
+                    管理者モード
+                </div>
+                <!-- ユーザーIDと日付表示 -->
+                <div class="text-sm text-gray-300 flex flex-col items-end">
+                    <span id="userIdDisplay" class="font-mono text-xs"></span>
+                    <span id="currentDateDisplay" class="text-xs opacity-70"></span>
+                </div>
+
+                <!-- ナビゲーションボタン群 -->
+                <button id="ffcViewButton" class="btn btn-neutral">フィードバック (一覧)</button>
+                <button id="rankingButton" class="btn btn-special">ランキング</button>
+                <button id="ktcButton" class="btn btn-neutral">口コミ (一覧)</button>
+                <button id="myAchievementsButton" class="btn btn-neutral">私の実績</button>
+                <button id="achievementRankingButton" class="btn btn-neutral">実績ランキング</button>
+                <button id="submitFeedbackButton" class="btn btn-positive">フィードバックを送る</button>
+                <button id="explanationButton" class="btn btn-neutral">説明</button>
+                <button id="helpButton" class="btn btn-info-blue">Help</button>
+            </div>
+        </div>
+    </header>
+
+    <!-- メインコンテンツ領域 -->
+    <main class="container mx-auto p-4 flex-grow flex flex-col">
+        <!-- 検索＆フィルターセクション -->
+        <section id="searchFilterSection" class="card mb-6 fixed-search-section">
+            <h2 class="text-2xl font-semibold mb-4 text-textPrimary">お店を探す</h2>
+            <div id="searchControls" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
+                <!-- 名前検索入力フィールド（オートコンプリート付き） -->
+                <div class="relative col-span-full md:col-span-2 lg:col-span-1">
+                    <label for="nameSearchInput" class="block text-textSecondary text-sm font-bold mb-1">お店の名前:</label>
+                    <input type="text" id="nameSearchInput" placeholder="お店の名前を入力" class="w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent text-textPrimary">
+                    <div id="autocompleteSuggestions" class="autocomplete-suggestions hidden"></div>
+                </div>
+                <!-- カテゴリフィルター -->
+                <div>
+                    <label for="categoryFilter" class="block text-textSecondary text-sm font-bold mb-1">カテゴリ:</label>
+                    <select id="categoryFilter" class="w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent text-textPrimary bg-white">
+                        <option value="all">すべて</option>
+                        <option value="ラーメン">ラーメン</option>
+                        <option value="焼肉">焼肉</option>
+                        <option value="カフェ">カフェ</option>
+                        <option value="居酒屋">居酒屋</option>
+                        <option value="寿司">寿司</option>
+                        <option value="和食">和食</option>
+                        <option value="洋食">洋食</option>
+                        <option value="中華">中華</option>
+                        <option value="パン">パン</option>
+                        <option value="スイーツ">スイーツ</option>
+                        <option value="食堂">食堂</option>
+                        <option value="その他">その他</option>
+                    </select>
+                </div>
+                <!-- 地域フィルター -->
+                <div>
+                    <label for="areaFilter" class="block text-textSecondary text-sm font-bold mb-1">地域:</label>
+                    <select id="areaFilter" class="w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent text-textPrimary bg-white">
+                        <option value="all">すべて</option>
+                        <option value="小杉">小杉</option>
+                        <option value="大門">大門</option>
+                        <option value="新湊">新湊</option>
+                        <option value="大島">大島</option>
+                        <option value="下村">下村</option>
+                        <option value="戸破">戸破</option>
+                        <option value="作道">作道</option>
+                        <option value="七美">七美</option>
+                        <option value="塚原">塚原</option>
+                        <option value="串田">串田</option>
+                    </select>
+                </div>
+                <!-- 料金フィルター -->
+                <div>
+                    <label for="priceFilter" class="block text-textSecondary text-sm font-bold mb-1">料金別:</label>
+                    <select id="priceFilter" class="w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent text-textPrimary bg-white">
+                        <option value="all">すべて</option>
+                        <option value="〜¥999">〜¥999</option>
+                        <option value="¥1000〜¥2999">¥1000〜¥2999</option>
+                        <option value="¥3000〜¥4999">¥3000〜¥4999</option>
+                        <option value="¥5000〜">¥5000〜</option>
+                    </select>
+                </div>
+                <!-- 時間フィルター -->
+                <div>
+                    <label for="timeFilter" class="block text-textSecondary text-sm font-bold mb-1">時間別:</label>
+                    <select id="timeFilter" class="w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent text-textPrimary bg-white">
+                        <option value="all">すべて</option>
+                        <option value="モーニング">モーニング</option>
+                        <option value="ランチ">ランチ</option>
+                        <option value="ディナー">ディナー</option>
+                        <option value="終日">終日</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- 並び替えコントロール -->
+            <div id="sortControls" class="flex flex-wrap items-center space-x-4 mb-4 gap-2">
+                <label for="sortOrder" class="block text-textSecondary text-sm font-bold">並び替え:</label>
+                <select id="sortOrder" class="p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent text-textPrimary bg-white">
+                    <option value="nameAsc">名前順 (昇順)</option>
+                    <option value="nameDesc">名前順 (降順)</option>
+                    <option value="distanceAsc">距離順 (昇順)</option>
+                </select>
+            </div>
+
+            <!-- 検索とリセットボタン -->
+            <div id="actionButtons" class="flex justify-end space-x-3">
+                <button id="searchButton" class="btn btn-main px-6 py-2.5">検索</button>
+                <button id="resetButton" class="btn btn-neutral px-6 py-2.5">リセット</button>
+            </div>
+        </section>
+
+        <!-- ショップリスト表示領域 -->
+        <section class="shop-list-container grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 pt-6 flex-grow overflow-y-auto">
+            <!-- ショップカードはJavaScriptによってここにレンダリングされます -->
+        </section>
+    </main>
+
+    <!-- フッターセクション -->
+    <footer class="bg-bgDark text-white p-4 text-center shadow-inner mt-auto">
+        <p id="footerCopyright" class="text-sm opacity-70">&copy; 2025 黑波. All rights reserved.</p>
+    </footer>
+
+    <!-- ========================================================== -->
+    <!-- モーダル群 -->
+    <!-- ========================================================== -->
+
+    <!-- ヘルプモーダル -->
+    <div id="helpModal" class="fixed inset-0 modal-overlay flex items-center justify-center z-50 hidden">
+        <div class="bg-cardBg p-8 rounded-xl shadow-2xl max-w-3xl w-full mx-4">
+            <h3 class="text-2xl font-bold mb-4 text-textPrimary border-b pb-2">黑波 操作ガイド</h3>
+            <div class="text-textSecondary space-y-3 max-h-[80vh] overflow-y-auto pr-2">
+                <p>このサイトは、射水市のお店を検索するためのプロトタイプです。</p>
+                <ul class="list-disc list-inside space-y-2 pl-5">
+                    <li>
+                        <strong>お店の名前検索:</strong>
+                        <p>「お店の名前」入力欄にキーワードを入力すると、お店の名前で絞り込むことができます。入力中に候補が表示されます。</p>
+                    </li>
+                    <li>
+                        <strong>検索とフィルタリング:</strong>
+                        <p>上部のドロップダウンメニューから、カテゴリ、地域、料金帯、時間帯を選択してお店を絞り込むことができます。「検索」ボタンをクリックすると、選択した条件で検索が実行されます。</p>
+                    </li>
+                    <li>
+                        <strong>リセット:学習:</strong>
+                        <p>「リセット」ボタンをクリックすると、すべて検索条件がクリアされ、すべてのお店が表示されます。</p>
+                    </li>
+                    <li>
+                        <strong>並び替え:</strong>
+                        <p>「並び替え」ドロップダウンから、お店を名前順（昇順/降順）または最寄駅からの距離順（昇順）で並べ替えることができます。</p>
+                    </li>
+                    <li>
+                        <strong>混雑状況:</strong>
+                        <p>各お店のカードには、現在の混雑状況（待ち時間）が表示されます。</p>
+                    </li>
+                    <li>
+                        <strong>お店の詳細:</strong>
+                        <p>各お店のカードにある「詳細を見る」ボタンをクリックすると、そのお店のGoogle検索結果ページが新しいタブで開きます。</p>
+                    </li>
+                    <li>
+                        <strong>口コミの追加:</strong>
+                        <p>各お店のカードにある「口コミを追加」ボタンをクリックすると、口コミ投稿用のフォームが表示されます。名前とコメントを入力して投稿できます。</p>
+                    </li>
+                </ul>
+                <p class="mt-4 text-sm text-gray-600">※このプロトタイプでは、データは一時的に保存されるため、ページをリロードするとリセットされます。</p>
+            </div>
+            <button id="closeHelpModal" class="mt-6 btn btn-info-blue w-full">お店を探すに戻る</button>
+        </div>
+    </div>
+
+    <!-- 説明モーダル (新しく追加) -->
+    <div id="explanationModal" class="fixed inset-0 modal-overlay flex items-center justify-center z-50 hidden">
+        <div class="bg-cardBg p-8 rounded-xl shadow-2xl max-w-3xl w-full mx-4">
+            <h3 class="text-2xl font-bold mb-4 text-textPrimary border-b pb-2">黑波 サイト説明</h3>
+            <div class="text-textSecondary space-y-3 max-h-[80vh] overflow-y-auto pr-2">
+                <p>このサイトは、射水市にある様々なお店を簡単に見つけ、情報を共有するためのアプリケーションです。ユーザーの皆様がより便利にお店探しを楽しめるよう、以下の機能を提供しています。</p>
+                <h4 class="font-bold text-lg text-textPrimary mt-4">主な機能:</h4>
+                <ul class="list-disc list-inside space-y-2 pl-5"> <!-- リストのインデントを調整 -->
+                    <li>
+                        <strong>お店の検索とフィルタリング:</strong>
+                        <p>お店の名前、カテゴリ（ラーメン、焼肉、カフェなど）、地域（小杉、新湊など）、料金帯、時間帯で自由に絞り込み検索が可能です。入力中のオートコンプリート機能で、探しているお店を素早く見つけることができます。</p>
+                    </li>
+                    <li>
+                        <strong>並び替え機能:</strong>
+                        <p>検索結果を、お店の名前順（昇順/降順）や、最寄駅からの距離順で並べ替えることができます。</p>
+                    </li>
+                    <li>
+                        <strong>お店の詳細情報:</strong>
+                        <p>各お店のカードには、カテゴリ、地域、料金、営業時間、最寄駅からの距離、そして現在の混雑状況（待ち時間）が表示されます。「詳細を見る」ボタンでGoogle検索結果に飛び、さらに詳しい情報を確認できます。</p>
+                    </li>
+                    <li>
+                        <strong>「いいね」機能（ハート）:</strong>
+                        <p>お気に入りのお店にハートを付けることができます。付けたハートの数は、そのお店の人気度として集計され、ランキングにも反映されます。一度ハートを付けると、通常モードでは二度目は無効です。</p>
+                    </li>
+                    <li>
+                        <strong>口コミ投稿機能:</strong>
+                        <p>実際にお店を訪れた体験を共有するため、各お店に口コミを投稿できます。他のお店選びの参考に役立ちます。</p>
+                    </li>
+                    <li>
+                        <strong>実績システム:</strong>
+                        <p>サイトの利用状況に応じて様々な実績（アチーブメント）が自動的に付与されます。例えば、「初心者ハンター」（1店舗閲覧）や「レビュービギナー」（1つ口コミ投稿）などがあります。達成した実績は「私の実績」ページで確認でき、全ユーザーの実績ランキングも閲覧可能です。</p>
+                    </li>
+                </ul>
+                <h4 class="font-bold text-lg text-textPrimary mt-4">利用方法のヒント:</h4>
+                <ul class="list-disc list-inside space-y-2 pl-5">
+                    <li><strong>スムーズな検索:</strong> まずは興味のあるお店の名前の一部を入力してみましょう。オートコンプリートが候補を提示してくれます。</li>
+                    <li><strong>管理者モード:</strong> フッターのコピーライト表示を繰り返しクリックすると、管理者モードのON/OFFが切り替わります。管理者モードでは、フィードバックや口コミの削除、ハートの複数回付与が可能になります。（※開発者向け機能です）</li>
+                </ul>
+                <p class="mt-4 text-sm text-gray-600">※このプロトタイプはローカルストレージを使用しており、データはご利用のブラウザに一時的に保存されます。ブラウザのキャッシュをクリアするとデータが失われる場合がありますのでご注意ください。</p>
+            </div>
+            <button id="closeExplanationModal" class="mt-6 btn btn-info-blue w-full">お店を探すに戻る</button>
+        </div>
+    </div>
+
+    <!-- パスワード入力モーダル (新しく追加) -->
+    <div id="passwordPromptModal" class="fixed inset-0 modal-overlay flex items-center justify-center z-50 hidden">
+        <div class="modal-content bg-cardBg p-8 rounded-xl shadow-2xl max-w-sm w-full mx-4">
+            <h3 class="text-xl font-bold mb-4 text-textPrimary">パスワードを入力してください</h3>
+            <input type="password" id="passwordInput" class="w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent text-textPrimary" placeholder="パスワード">
+            <p id="passwordMessage" class="message text-danger"></p>
+            <div class="flex justify-end space-x-3 mt-4">
+                <button type="button" id="cancelPasswordInput" class="btn btn-neutral">キャンセル</button>
+                <button type="button" id="submitPassword" class="btn btn-main">送信</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- レビューモーダル -->
+    <div id="reviewModal" class="fixed inset-0 modal-overlay flex items-center justify-center z-50 hidden">
+        <div class="bg-cardBg p-8 rounded-xl shadow-2xl max-w-lg w-full mx-4">
+            <h3 id="reviewModalTitle" class="text-2xl font-bold mb-4 text-textPrimary border-b pb-2">口コミを追加</h3>
+            <form id="reviewForm" class="space-y-4">
+                <div>
+                    <label for="reviewerName" class="block text-textSecondary text-sm font-bold mb-1">お名前:</label>
+                    <input type="text" id="reviewerName" class="w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent text-textPrimary" required>
+                </div>
+                <div>
+                    <label for="reviewComment" class="block text-textSecondary text-sm font-bold mb-1">コメント:</label>
+                    <textarea id="reviewComment" rows="4" class="w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent text-textPrimary" required></textarea>
+                </div>
+                <input type="hidden" id="currentShopId">
+                <div class="flex justify-end space-x-3">
+                    <button type="button" id="cancelReview" class="btn btn-neutral">キャンセル</button>
+                    <button type="submit" class="btn btn-positive">投稿</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- フィードバックモーダル -->
+    <div id="feedbackModal" class="fixed inset-0 modal-overlay flex items-center justify-center z-50 hidden">
+        <div class="bg-cardBg p-8 rounded-xl shadow-2xl max-w-md w-full mx-4">
+            <h3 class="text-2xl font-bold mb-4 text-textPrimary border-b pb-2">フィードバックを送信</h3>
+            <form id="feedbackForm" class="space-y-4">
+                <div>
+                    <label for="feedbackName" class="block text-textSecondary text-sm font-bold mb-1">お名前 (任意):</label>
+                    <input type="text" id="feedbackName" class="w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent text-textPrimary">
+                </div>
+                <div>
+                    <label for="feedbackEmail" class="block text-textSecondary text-sm font-bold mb-1">メールアドレス (任意):</label>
+                    <input type="email" id="feedbackEmail" placeholder="例: example@example.com" class="w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent text-textPrimary">
+                </div>
+                <div>
+                    <label for="feedbackMessage" class="block text-textSecondary text-sm font-bold mb-1">メッセージ (必須):</label>
+                    <textarea id="feedbackMessage" rows="6" class="w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent text-textPrimary" required></textarea>
+                </div>
+                <div class="flex justify-end space-x-3">
+                    <button type="button" id="cancelFeedback" class="btn btn-neutral">キャンセル</button>
+                    <button type="submit" class="btn btn-info-blue">送信</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- アチーブメントモーダル -->
+    <div id="achievementModal" class="fixed inset-0 modal-overlay flex items-center justify-center z-50 hidden">
+        <div class="bg-cardBg p-8 rounded-xl shadow-2xl max-w-3xl w-full mx-4">
+            <h3 class="text-2xl font-bold mb-4 text-textPrimary border-b pb-2">達成したアチーブメント</h3>
+            <div id="achievementList" class="text-textSecondary space-y-3 max-h-[80vh] overflow-y-auto pr-2">
+                <!-- アチーブメントはここにリスト表示されます -->
+            </div>
+            <button id="closeAchievementModal" class="mt-6 btn btn-info-blue w-full">お店を探すに戻る</button>
+        </div>
+    </div>
+
+    <!-- カスタムメッセージボックス -->
+    <div id="messageBox" class="fixed inset-0 modal-overlay flex items-center justify-center z-[100] hidden">
+        <div class="bg-cardBg p-6 rounded-xl shadow-2xl max-w-sm w-full mx-4 text-center">
+            <p id="messageBoxContent" class="text-textPrimary text-lg mb-4 font-semibold"></p>
+            <button id="closeMessageBox" class="btn btn-info-blue w-full">OK</button>
+        </div>
+    </div>
+
+    <!-- カスタム確認ボックス -->
+    <div id="confirmBox" class="fixed inset-0 modal-overlay flex items-center justify-center z-[100] hidden">
+        <div class="bg-cardBg p-6 rounded-xl shadow-2xl max-w-sm w-full mx-4 text-center">
+            <p id="confirmBoxContent" class="text-textPrimary text-lg mb-4 font-semibold"></p>
+            <div class="flex justify-center space-x-3">
+                <button id="confirmBoxOk" class="btn btn-danger-red">確認</button>
+                <button id="confirmBoxCancel" class="btn btn-neutral">キャンセル</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // パスワードの定数
+        const EXPLANATION_PASSWORD = 'Pov41360';
+
+        /**
+         * UUID生成関数 (RFC 4122 v4)
+         * 一意なユーザーIDを生成するために使用
+         */
+        function generateUUID() {
+            return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+                const r = Math.random() * 16 | 0,
+                    v = c === 'x' ? r : (r & 0x3 | 0x8);
+                return v.toString(16);
+            });
+        }
+
+        // ユーザーIDの取得または生成とローカルストレージへの保存
+        let currentUserId = localStorage.getItem('userId');
+        if (!currentUserId) {
+            currentUserId = generateUUID();
+            localStorage.setItem('userId', currentUserId);
+        }
+        console.log("Current User ID:", currentUserId);
+
+        // すべてのユーザーデータを格納するグローバル変数
+        // ローカルストレージからデータをロードし、存在しない場合は初期化
+        let allUserData = JSON.parse(localStorage.getItem('allUserData')) || {};
+
+        // 現在のユーザーのデータが存在しない場合は初期化
+        if (!allUserData[currentUserId]) {
+            allUserData[currentUserId] = {
+                likedShopIds: [],
+                achievements: [],
+                viewCounts: {} // 各ショップの閲覧回数を追跡するためのオブジェクト
+            };
+        }
+
+        // likedShopIds (Set)とviewCounts (Object)の初期化または変換
+        allUserData[currentUserId].likedShopIds = new Set(allUserData[currentUserId].likedShopIds || []);
+        if (!allUserData[currentUserId].viewCounts) {
+            allUserData[currentUserId].viewCounts = {};
+        }
+
+        // ダミーのお店のデータ (射水市内の多様な飲食店を想定)
+        // ローカルストレージから店舗データをロード、なければ初期ダミーデータを使用
+        let shops = JSON.parse(localStorage.getItem('shops')) || [
+            { id: 1, name: "射水ラーメン本舗", category: "ラーメン", area: "小杉", price: "〜¥999", time: "ランチ", nearestStation: "小杉駅", distance: 0.5, homepage: "https://www.google.com/search?q=%E5%B0%84%E6%B0%B4%E3%83%A9%E3%83%BC%E3%83%A1%E3%83%B3%E6%9C%AC%E8%88%97", description: "伝統的な豚骨ベースのスープが自慢のラーメン店。麺は自家製で、毎日手打ちしています。", reviews: [], hearts: 0, waitingTime: "現在待ち時間なし" },
+            { id: 2, name: "焼肉亭 大門", category: "焼肉", area: "大門", price: "¥3000〜¥4999", time: "ディナー", nearestStation: "大門駅", distance: 1.2, homepage: "https://www.google.com/search?q=%E7%84%BC%E8%82%89%E4%BA%AD+%E5%A4%A7%E9%96%80", description: "A5ランクの和牛をリーズナブルな価格で提供。個室も完備しており、家族連れにも人気です。", reviews: [], hearts: 0, waitingTime: "20分待ち" },
+            { id: 3, name: "カフェ・ド・射水", category: "カフェ", area: "新湊", price: "〜¥999", time: "終日", nearestStation: "新湊駅", distance: 0.8, homepage: "https://www.google.com/search?q=%E3%82%AB%E3%83%95%E3%82%A7%E3%83%BB%E3%83%89%E3%83%BB%E5%B0%84%E6%B0%B4", description: "海が見えるロケーションで、こだわりのコーヒーと手作りケーキが楽しめます。Wi-Fi完備。", reviews: [], hearts: 0, waitingTime: "現在待ち時間なし" },
+            { id: 4, name: "居酒屋 漁火", category: "居酒屋", area: "新湊", price: "¥1000〜¥2999", time: "ディナー", nearestStation: "新湊駅", distance: 0.3, homepage: "https://www.google.com/search?q=%E5%B1%85%E9%85%92%E5%B1%8B+%E6%BC%81%E7%81%AB", description: "新鮮な地元の魚介を使った料理が自慢の居酒屋。日本酒の種類も豊富です。", reviews: [], hearts: 0, waitingTime: "10分待ち" },
+            { id: 5, name: "寿司処 小杉", category: "寿司", area: "小杉", price: "¥5000〜", time: "ディナー", nearestStation: "小杉駅", distance: 1.5, homepage: "https://www.google.com/search?q=%E5%AF%BF%E5%88%B2%E7%83%B9+%E5%B0%8F%E6%9D%89", description: "富山湾で獲れた旬の魚を握る本格寿司店。大将の技が光る一品をぜひ。", reviews: [], hearts: 0, waitingTime: "30分待ち" },
+            { id: 6, name: "喫茶 大島", category: "カフェ", area: "大島", price: "〜¥999", time: "ランチ", nearestStation: "越中大門駅", distance: 2.1, homepage: "https://www.google.com/search?q=%E5%96%AB%E8%8C%B6+%E5%A4%A7%E5%B3%B6", description: "レトロな雰囲気の喫茶店。モーニングやランチセットも充実しています。", reviews: [], hearts: 0, waitingTime: "現在待ち時間なし" },
+            { id: 7, name: "中華料理 龍鳳", category: "中華", area: "下村", price: "¥1000〜¥2999", time: "終日", nearestStation: "越中大門駅", distance: 3.0, homepage: "https://www.google.com/search?q=%E4%B8%AD%E8%8F%AF%E6%96%99%E7%90%86+%E9%BE%8D%E9%B3%B3", description: "本格的な中華料理が楽しめるお店。特に麻婆豆腐は絶品です。", reviews: [], hearts: 0, waitingTime: "5分待ち" },
+            { id: 8, name: "ラーメン 麺屋 黒", category: "ラーメン", area: "大門", price: "¥1000〜¥2999", time: "ランチ", nearestStation: "大門駅", distance: 0.7, homepage: "https://www.google.com/search?q=%E3%83%A9%E3%83%BC%E3%83%A1%E3%83%B3+%E9%BA%BA%E5%B1%8B+%E9%BB%92", description: "魚介系のあっさりスープが特徴のラーメン店。女性にも人気です。", reviews: [], hearts: 0, waitingTime: "15分待ち" },
+            { id: 9, name: "焼肉ハウス 炎", category: "焼肉", area: "小杉", price: "¥3000〜¥4999", time: "ディナー", nearestStation: "小杉駅", distance: 0.9, homepage: "https://www.google.com/search?q=%E7%84%BC%E8%82%89%E3%83%8F%E3%82%A6%E3%82%B9+%E7%82%8E", description: "家族で楽しめるアットホームな焼肉店。食べ放題コースもあります。", reviews: [], hearts: 0, waitingTime: "25分待ち" },
+            { id: 10, name: "ベーカリー＆カフェ ブラン", category: "パン", area: "新湊", price: "〜¥999", time: "ランチ", nearestStation: "新湊駅", distance: 1.1, homepage: "https://www.google.com/search?q=%E3%83%99%E3%83%BC%E3%82%AB%E3%83%AA%E3%83%BC%EF%BC%86%E3%82%AB%E3%83%95%E3%82%A7+%E3%83%96%E3%83%A9%E3%83%B3", description: "焼きたてのパンと淹れたてのコーヒーが楽しめるベーカリーカフェ。", reviews: [], hearts: 0, waitingTime: "現在待ち時間なし" },
+            { id: 11, name: "和食処 旬彩", category: "和食", area: "戸破", price: "¥3000〜¥4999", time: "ディナー", nearestStation: "小杉駅", distance: 2.5, homepage: "https://www.google.com/search?q=%E5%92%8C%E9%A3%9F%E5%87%A6+%E6%97%AC%E5%BD%A9", description: "旬の食材を活かした本格和食。接待や特別な日に最適です。", reviews: [], hearts: 0, waitingTime: "10分待ち" },
+            { id: 12, name: "洋食屋 グリル富山", category: "洋食", area: "作道", price: "¥1000〜¥2999", time: "ランチ", nearestStation: "越中大門駅", distance: 1.8, homepage: "https://www.google.com/search?q=%E6%B4%8B%E9%A3%9F%E5%B1%8B+%E3%82%B0%E3%83%AA%E3%83%AB%E5%AF%8C%E5%B1%B1", description: "ハンバーグやオムライスなど、懐かしい洋食メニューが豊富です。", reviews: [], hearts: 0, waitingTime: "5分待ち" },
+            { id: 13, name: "スイーツファクトリー 夢", category: "スイーツ", area: "七美", price: "〜¥999", time: "終日", nearestStation: "越中大門駅", distance: 4.0, homepage: "https://www.google.com/search?q=%E3%82%B9%E3%82%A4%E3%83%BC%E3%83%84%E3%83%95%E3%82%A1%E3%83%BC%E3%83%88%E3%83%AA%E3%83%BC+%E5%A4%A2", description: "手作りのケーキや焼き菓子が人気のパティスリー。お土産にもどうぞ。", reviews: [], hearts: 0, waitingTime: "現在待ち時間なし" },
+            { id: 14, name: "ラーメン 麺処 匠", category: "ラーメン", area: "小杉", price: "¥1000〜¥2999", time: "ディナー", nearestStation: "小杉駅", distance: 0.7, homepage: "https://www.google.com/search?q=%E3%83%A9%E3%83%BC%E3%83%A1%E3%83%B3+%E9%BA%麺処+%E5%8C%A0", description: "濃厚な魚介豚骨スープが特徴のラーメン店。つけ麺も人気です。", reviews: [], hearts: 0, waitingTime: "20分待ち" },
+            { id: 15, name: "カフェ・ミント", category: "カフェ", area: "大門", price: "〜¥999", time: "モーニング", nearestStation: "大門駅", distance: 1.0, homepage: "https://www.google.com/search?q=%E3%82%AB%E3%83%95%E3%82%A7%E3%83%BB%E3%83%9F%E3%83%B3%E3%83%88", description: "朝早くから開いているカフェ。焼きたてのパンとコーヒーで一日をスタート。", reviews: [], hearts: 0, waitingTime: "現在待ち時間なし" },
+            { id: 16, name: "焼肉キングダム", category: "焼肉", area: "新湊", price: "¥5000〜", time: "ディナー", nearestStation: "新湊駅", distance: 0.6, homepage: "https://www.google.com/search?q=%E7%84%BC%E8%82%89%E3%82%AD%E3%83%B3%E3%82%B0%E3%83%80%E3%83%A0", description: "厳選されたお肉を贅沢に味わえる高級焼肉店。特別な日におすすめ。", reviews: [], hearts: 0, waitingTime: "40分待ち" },
+            { id: 17, name: "中華食堂 福来軒", category: "中華", area: "小杉", price: "〜¥999", time: "ランチ", nearestStation: "小杉駅", distance: 0.9, homepage: "https://www.google.com/search?q=%E4%B8%AD%E8%8F%AF%E9%A3%9F%E5%BA%97+%E7%A6%8F%E6%9D%A5%E8%BB%92", description: "手軽に本格中華が楽しめる食堂。定食メニューも充実しています。", reviews: [], hearts: 0, waitingTime: "10分待ち" },
+            { id: 18, name: "パティスリー ル・レーヴ", category: "スイーツ", area: "大門", price: "〜¥999", time: "終日", nearestStation: "大門駅", distance: 1.5, homepage: "https://www.google.com/search?q=%E3%83%91%E3%83%86%E3%82%A3%E3%82%B9%E3%83%AA%E3%83%BC+%E3%83%AB%E3%83%BB%E3%83%AC%E3%83%BC%E3%83%B4", description: "繊細な味わいのフランス菓子が並ぶパティスリー。イートインスペースもあります。", reviews: [], hearts: 0, waitingTime: "現在待ち時間なし" },
+            { id: 19, name: "居酒屋 笑笑", category: "居酒屋", area: "戸破", price: "¥1000〜¥2999", time: "ディナー", nearestStation: "小杉駅", distance: 2.0, homepage: "https://www.google.com/search?q=%E5%B1%85%E9%85%92%E5%B1%8B+%E7%AC%91%E7%AC%91", description: "活気のある雰囲気で、豊富なメニューが楽しめる大衆居酒屋。", reviews: [], hearts: 0, waitingTime: "15分待ち" },
+            { id: 20, name: "パン工房 こむぎ", category: "パン", area: "作道", price: "〜¥999", time: "モーニング", nearestStation: "越中大門駅", distance: 2.3, homepage: "https://www.google.com/search?q=%E3%83%91%E3%83%B3%E5%B7%A5%E6%88%BF+%E3%81%93%E3%81%93%E3%81%BF", description: "毎日焼き上げるふわふわのパンが自慢のパン屋さん。サンドイッチも人気。", reviews: [], hearts: 0, waitingTime: "現在待ち時間なし" },
+            { id: 21, name: "寿司割烹 海鮮丸", category: "寿司", area: "新湊", price: "¥5000〜", time: "ディナー", nearestStation: "新湊駅", distance: 0.4, homepage: "https://www.google.com/search?q=%E5%AF%BF%E5%88%B2%E7%83%B9+%E6%B5%B7%E9%AE%AE%E4%B8%B8", description: "新鮮な海の幸をふんだんに使った寿司と割烹料理。接待にも利用できます。", reviews: [], hearts: 0, waitingTime: "30分待ち" },
+            { id: 22, name: "洋食レストラン ボンジュール", category: "洋食", area: "下村", price: "¥3000〜¥4999", time: "ランチ", nearestStation: "越中大門駅", distance: 3.5, homepage: "https://www.google.com/search?q=%E6%B4%8B%E9%A3%9F%E5%B1%8B+%E3%83%9C%E3%83%B3%E3%82%B8%E3%83%A5%E3%83%BC%E3%83%AB", description: "落ち着いた雰囲気で本格的な洋食が楽しめるレストラン。記念日にも。", reviews: [], hearts: 0, waitingTime: "10分待ち" },
+            { id: 23, name: "カフェ＆ダイニング リーブス", category: "カフェ", area: "七美", price: "¥1000〜¥2999", time: "終日", nearestStation: "越中大門駅", distance: 4.5, homepage: "https://www.google.com/search?q=%E3%82%AB%E3%83%95%E3%82%A7%EF%BC%86%E3%83%80%E3%82%A4%E3%83%8B%E3%83%B3%E3%82%B0+%E3%83%AA%E3%83%BC%E3%83%96%E3%82%B9", description: "広々とした空間で、ランチからディナーまで楽しめるカフェダイニング。", reviews: [], hearts: 0, waitingTime: "5分待ち" },
+            { id: 24, name: "和食ダイニング 結", category: "和食", area: "大島", price: "¥3000〜¥4999", time: "ディナー", nearestStation: "越中大門駅", distance: 2.8, homepage: "https://www.google.com/search?q=%E5%92%8C%E9%A3%9F%E3%83%80%E3%82%A4%E3%83%8B%E3%83%B3%E3%82%B0+%E7%B5%90", description: "創作和食と地酒が楽しめる隠れ家的なダイニングバー。", reviews: [], hearts: 0, waitingTime: "20分待ち" },
+            { id: 25, name: "ラーメン専門店 麺神", category: "ラーメン", area: "新湊", price: "¥1000〜¥2999", time: "ランチ", nearestStation: "新湊駅", distance: 1.0, homepage: "https://www.google.com/search?q=%E3%83%A9%E3%83%BC%E3%83%A1%E3%83%B3%E5%B0%82%E9%96%80%E5%BA%97+%E9%BA%麺神", reviews: [], hearts: 0, waitingTime: "10分待ち" },
+            { id: 26, name: "食堂 ほっと", category: "食堂", area: "塚原", price: "〜¥999", time: "ランチ", nearestStation: "小杉駅", distance: 3.2, homepage: "https://www.google.com/search?q=%E9%A3%9F%E5%A0%82+%E3%81%BB%E3%81%A3%E3%81%A8", description: "家庭的な定食が人気の食堂。日替わりランチも好評です。", reviews: [], hearts: 0, waitingTime: "現在待ち時間なし" },
+            { id: 27, name: "定食屋 大衆", category: "食堂", area: "串田", price: "〜¥999", time: "終日", nearestStation: "越中大門駅", distance: 2.7, homepage: "https://www.google.com/search?q=%E5%AE%9A%E9%A3%9F%E5%BA%97+%E5%A4%A7%E8%A1%86", description: "ボリューム満点の定食が楽しめる、昔ながらの定食屋さん。", reviews: [], hearts: 0, waitingTime: "5分待ち" },
+            { id: 28, name: "とんかつ専門 豚八", category: "和食", area: "小杉", price: "¥1000〜¥2999", time: "ランチ", nearestStation: "小杉駅", distance: 0.8, homepage: "https://www.google.com/search?q=%E3%81%A8%E3%82%93%E3%81%8B%E3%81%A4%E5%B0%82%E9%96%80+%E8%B1%9A%E5%85%AB", description: "サクサクの衣とジューシーな豚肉が自慢のとんかつ専門店。", reviews: [], hearts: 0, waitingTime: "15分待ち" },
+            { id: 29, name: "イタリアンレストラン ピアット", category: "洋食", area: "新湊", price: "¥3000〜¥4999", time: "ディナー", nearestStation: "新湊駅", distance: 1.3, homepage: "https://www.google.com/search?q=%E3%82%A4%E3%82%BF%E3%83%AA%E3%82%A2%E3%83%B3%E3%83%AC%E3%82%B9%E3%83%88%E3%83%A9%E3%83%B3+%E3%83%94%E3%82%A2%E3%83%83%E3%83%88", description: "本格的なイタリアン料理とワインが楽しめる、おしゃれなレストラン。", reviews: [], hearts: 0, waitingTime: "20分待ち" },
+            { id: 30, name: "中華飯店 満月", category: "中華", area: "大門", price: "¥1000〜¥2999", time: "終日", nearestStation: "大門駅", distance: 1.8, homepage: "https://www.google.com/search?q=%E4%B8%AD%E8%8F%AF%E9%A3%9F%E5%BA%97+%E6%BA%80%E6%9C%88", description: "定番の中華料理から創作料理まで、幅広いメニューが魅力。", reviews: [], hearts: 0, waitingTime: "10分待ち" }
+        ];
+
+        // 各店舗のレビュー配列が未定義の場合、空の配列で初期化
+        shops.forEach(shop => {
+            if (!shop.reviews) {
+                shop.reviews = [];
+            }
+            if (typeof shop.hearts === 'undefined') {
+                shop.hearts = 0;
+            }
+        });
+
+        // フィードバックを格納する配列。ローカルストレージからロード、なければ空の配列
+        let feedbackItems = JSON.parse(localStorage.getItem('feedbackItems')) || [];
+
+        // 管理者モードの状態を追跡する変数
+        let isAdminMode = false;
+        // 現在の表示モードを追跡する変数 ('shops', 'feedback', 'reviews', 'ranking', 'myAchievements', 'achievementRanking', 'explanation')
+        let currentDisplayMode = 'shops';
+
+        // DOM要素の参照を格納する変数 (DOMContentLoaded後に初期化)
+        let shopListContainer, nameSearchInput, autocompleteSuggestions,
+            categoryFilter, areaFilter, priceFilter, timeFilter, sortOrder,
+            searchButton, resetButton, helpButton, explanationButton,
+            submitFeedbackButton, rankingButton, ktcButton, ffcViewButton,
+            myAchievementsButton, achievementRankingButton,
+            helpModal, closeHelpModal,
+            explanationModal, closeExplanationModal, passwordPromptModal, passwordInput, submitPasswordButton, cancelPasswordInput, passwordMessage,
+            reviewModal, reviewModalTitle, reviewForm, reviewerNameInput,
+            reviewCommentInput, currentShopIdInput, cancelReviewButton,
+            searchFilterSection, feedbackModal, feedbackForm,
+            feedbackNameInput, feedbackEmailInput, feedbackMessageInput,
+            cancelFeedbackButton, messageBox, messageBoxContent,
+            closeMessageBoxButton, confirmBox, confirmBoxContent,
+            confirmBoxOk, confirmBoxCancel,
+            footerCopyright, adminModeIndicator, searchControls, sortControls, actionButtons,
+            userIdDisplay, currentDateDisplay, achievementModal, achievementList, closeAchievementModal;
+
+        let currentShopForReview = null;
+        let currentAutocompleteSelection = -1;
+
+        // アチーブメント定義
+        const achievementsData = [
+            { id: 'view_1_shop', name: '初心者ハンター', description: '1店舗を閲覧しました。', criteria: { type: 'view_count', count: 1 } },
+            { id: 'view_5_shops', name: '探検家', description: '5店舗を閲覧しました。', criteria: { type: 'view_count', count: 5 } },
+            { id: 'view_all_shops', name: 'マスターオブ射水', description: `全てのお店 (${shops.length}店舗) を閲覧しました。`, criteria: { type: 'view_count', count: shops.length } },
+            { id: 'like_1_shop', name: 'ハートコレクター', description: '1店舗にハートを付けました。', criteria: { type: 'like_count', count: 1 } },
+            { id: 'like_5_shops', name: '愛されコレクター', description: '5店舗にハートを付けました。', criteria: { type: 'like_count', count: 5 } },
+            { id: 'add_1_review', name: 'レビュービギナー', description: '1つ口コミを投稿しました。', criteria: { type: 'review_count', count: 1 } },
+            { id: 'add_5_reviews', name: 'レビューキング', description: '5つ口コミを投稿しました。', criteria: { type: 'review_count', count: 5 } },
+        ];
+
+
+        // ==========================================================
+        // ローカルストレージ データ操作関数
+        // ==========================================================
+
+        /**
+         * ショップデータをローカルストレージに保存する
+         */
+        function saveShopsToLocalStorage() {
+            try {
+                localStorage.setItem('shops', JSON.stringify(shops));
+            } catch (e) {
+                console.error("ローカルストレージへのショップデータの保存に失敗しました。", e);
+                showMessageBox("データの保存中にエラーが発生しました。ブラウザのストレージを確認してください。");
+            }
+        }
+
+        /**
+         * フィードバックデータをローカルストレージに保存する
+         */
+        function saveFeedbackItemsToLocalStorage() {
+            try {
+                localStorage.setItem('feedbackItems', JSON.stringify(feedbackItems));
+            } catch (e) {
+                console.error("ローカルストレージへのフィードバックデータの保存に失敗しました。", e);
+                showMessageBox("データの保存中にエラーが発生しました。ブラウザのストレージを確認してください。");
+            }
+        }
+
+        /**
+         * すべてのユーザーデータをローカルストレージに保存する
+         */
+        function saveAllUserData() {
+            try {
+                // likedShopIds SetをArrayに変換してから保存
+                const dataToSave = {};
+                for (const userId in allUserData) {
+                    dataToSave[userId] = {
+                        likedShopIds: Array.from(allUserData[userId].likedShopIds),
+                        achievements: allUserData[userId].achievements,
+                        viewCounts: allUserData[userId].viewCounts
+                    };
+                }
+                localStorage.setItem('allUserData', JSON.stringify(dataToSave));
+            } catch (e) {
+                console.error("ローカルストレージへのユーザーデータの保存に失敗しました。", e);
+                showMessageBox("データの保存中にエラーが発生しました。ブラウザのストレージを確認してください。");
+            }
+        }
+
+        /**
+         * ショップの閲覧数をインクリメントし、アチーブメントをチェックする
+         * @param {number} shopId - 閲覧数を増やすお店のID
+         */
+        function incrementShopViewCount(shopId) {
+            // allUserData内のcurrentUserIdのviewCountsを更新
+            if (!allUserData[currentUserId].viewCounts) {
+                allUserData[currentUserId].viewCounts = {}; // 万が一viewCountsがない場合に備える
+            }
+            allUserData[currentUserId].viewCounts[shopId] = (allUserData[currentUserId].viewCounts[shopId] || 0) + 1;
+            saveAllUserData();
+            checkAndAwardAchievements();
+        }
+
+        /**
+         * 個別のフィードバックを削除する
+         * @param {string} feedbackId - 削除するフィードバックのID
+         */
+        async function deleteIndividualFeedback(feedbackId) {
+            const confirmed = await showConfirmBox('このフィードバックを削除してもよろしいですか？');
+            if (confirmed) {
+                feedbackItems = feedbackItems.filter(item => item.id !== feedbackId);
+                saveFeedbackItemsToLocalStorage();
+                renderFeedbackItems(feedbackItems); // 再レンダリング
+                showMessageBox('フィードバックを削除しました。');
+            }
+        }
+
+        /**
+         * 全てのフィードバックを削除する
+         */
+        async function clearAllFeedback() {
+            const confirmed = await showConfirmBox('すべてのフィードバックを削除してもよろしいですか？');
+            if (confirmed) {
+                feedbackItems = [];
+                saveFeedbackItemsToLocalStorage();
+                renderFeedbackItems(feedbackItems);
+                showMessageBox('すべてのフィードバックを削除しました。');
+            }
+        }
+
+        /**
+         * 個別の口コミを削除する
+         * @param {number} shopId - 口コミを削除するお店のID
+         * @param {number} reviewIndex - 削除する口コミのインデックス
+         */
+        async function deleteIndividualReview(shopId, reviewIndex) {
+            const confirmed = await showConfirmBox('この口コミを削除してもよろしいですか？');
+            if (confirmed) {
+                const shop = shops.find(s => s.id === shopId);
+                if (shop && shop.reviews) {
+                    // reviewIndexが有効な範囲内か確認
+                    if (reviewIndex >= 0 && reviewIndex < shop.reviews.length) {
+                        shop.reviews.splice(reviewIndex, 1);
+                        // 口コミが削除された場合、アチーブメントを再チェック（減る可能性はないが念のため）
+                        checkAndAwardAchievements();
+                        saveShopsToLocalStorage(); // 更新を保存
+                        // 現在のビューが口コミ一覧の場合のみ再レンダリング
+                        if (currentDisplayMode === 'reviews') {
+                            renderReviewsAsKTC(getAllReviews());
+                        } else if (currentDisplayMode === 'shops') {
+                            applyFiltersAndSort(); // 通常のショップリスト表示も更新を反映
+                        }
+                        showMessageBox('口コミを削除しました。');
+                    } else {
+                        console.error(`Invalid review index: ${reviewIndex} for shopId: ${shopId}`);
+                        showMessageBox('指定された口コミが見つかりませんでした。');
+                    }
+                } else {
+                    console.error(`Shop or reviews not found for shopId: ${shopId}`);
+                    showMessageBox('お店の口コミデータが見つかりませんでした。');
+                }
+            }
+        }
+
+        /**
+         * 特定のお店の全ての口コミを削除する
+         * @param {number} shopId - 口コミを削除するお店のID
+         */
+        async function clearAllShopReviews(shopId) {
+            const confirmed = await showConfirmBox('このお店のすべての口コミを削除してもよろしいですか？');
+            if (confirmed) {
+                const shop = shops.find(s => s.id === shopId);
+                if (shop) {
+                    shop.reviews = [];
+                    checkAndAwardAchievements(); // アチーブメントを再チェック
+                    saveShopsToLocalStorage();
+                    if (currentDisplayMode === 'reviews') {
+                        renderReviewsAsKTC(getAllReviews());
+                    } else { // 通常のショップリスト表示の場合も、更新を反映するために再レンダリング
+                         applyFiltersAndSort();
+                    }
+                    showMessageBox('このお店のすべての口コミを削除しました。');
+                } else {
+                    console.error(`Shop not found for shopId: ${shopId}`);
+                    showMessageBox('お店のデータが見つかりませんでした。');
+                }
+            }
+        }
+
+        /**
+         * すべての口コミを削除する (KTCカテゴリ用)
+         */
+        async function clearAllKTCReviews() {
+            const confirmed = await showConfirmBox('すべての口コミを削除してもよろしいですか？');
+            if (confirmed) {
+                shops.forEach(shop => {
+                    shop.reviews = []; // 各お店の口コミを空にする
+                });
+                checkAndAwardAchievements(); // アチーブメントを再チェック
+                saveShopsToLocalStorage(); // 更新を保存
+                renderReviewsAsKTC([]); // KTCビューを再レンダリング（空にする）
+                showMessageBox('すべての口コミを削除しました。');
+            }
+        }
+
+        /**
+         * すべてのハート数を0にする
+         */
+        async function clearAllHearts() {
+            const confirmed = await showConfirmBox('すべてのハートを削除してもよろしいですか？');
+            if (confirmed) {
+                shops.forEach(shop => {
+                    shop.hearts = 0; // 各お店のハート数を0にする
+                });
+                // 全てのユーザーのlikedShopIdsをクリアする（管理者モードのため）
+                for (const userId in allUserData) {
+                    if (allUserData[userId] && allUserData[userId].likedShopIds) { // nullチェックを追加
+                        allUserData[userId].likedShopIds.clear();
+                    }
+                }
+                checkAndAwardAchievements(); // アチーブメントを再チェック
+                saveAllUserData(); // 全てのユーザーデータを保存
+                saveShopsToLocalStorage(); // ショップのhearts数も保存
+                renderRanking(); // ランキングビューを再レンダリング
+                showMessageBox('すべてのハートを削除しました。');
+            }
+        }
+
+        /**
+         * 全てのアチーブメントを削除する (管理者モード用)
+         */
+        async function clearAllAchievements() {
+            const confirmed = await showConfirmBox('すべてのユーザーのすべてのアチーブメントを削除してもよろしいですか？');
+            if (confirmed) {
+                for (const userId in allUserData) {
+                    if (allUserData[userId]) { // nullチェックを追加
+                        allUserData[userId].achievements = [];
+                        allUserData[userId].viewCounts = {}; // 閲覧数もリセット
+                        if (allUserData[userId].likedShopIds) { // nullチェックを追加
+                            allUserData[userId].likedShopIds.clear(); // いいねもリセット
+                        }
+                    }
+                }
+                saveAllUserData();
+                // 現在の表示モードに応じて適切なビューを再レンダリング
+                if (currentDisplayMode === 'myAchievements') {
+                    renderMyAchievements();
+                } else if (currentDisplayMode === 'achievementRanking') {
+                    renderAchievementRanking();
+                } else {
+                    applyFiltersAndSort(); // 通常のショップリスト表示に戻る
+                }
+                showMessageBox('すべてのユーザーのすべてのアチーブメントが削除されました。');
+            }
+        }
+
+        /**
+         * 特定のユーザーのアチーブメントを削除する
+         * @param {string} achievementIdToDelete - 削除するアチーブメントのID
+         */
+        async function deleteMyAchievement(achievementIdToDelete) {
+            const confirmed = await showConfirmBox('この実績を削除してもよろしいですか？');
+            if (confirmed) {
+                if (allUserData[currentUserId] && allUserData[currentUserId].achievements) { // nullチェックを追加
+                    allUserData[currentUserId].achievements = allUserData[currentUserId].achievements.filter(
+                        (id) => id !== achievementIdToDelete
+                    );
+                    saveAllUserData();
+                    renderMyAchievements(); // 実績一覧を再レンダリング
+                    showMessageBox('実績が削除されました。');
+                } else {
+                    console.error(`User data or achievements not found for current user: ${currentUserId}`);
+                    showMessageBox('実績データが見つかりませんでした。');
+                }
+            }
+        }
+
+        /**
+         * 通常の検索画面に戻る関数 (全ての表示モードを「shops」に戻し、ショップリストを再レンダリング)
+         */
+        function backToShopSearch() {
+            currentDisplayMode = 'shops'; // 表示モードをショップ検索に戻す
+            // セクションタイトルを更新し、検索コントロールを表示
+            const searchSectionTitle = document.querySelector('#searchFilterSection h2');
+            if (searchSectionTitle) {
+                searchSectionTitle.textContent = 'お店を探す';
+            }
+            if (searchControls) searchControls.classList.remove('hidden');
+            if (sortControls) sortControls.classList.remove('hidden');
+            if (actionButtons) actionButtons.classList.remove('hidden');
+
+            // すべてのモーダルを隠す
+            if (helpModal) helpModal.classList.add('hidden');
+            if (explanationModal) explanationModal.classList.add('hidden');
+            if (passwordPromptModal) passwordPromptModal.classList.add('hidden');
+            if (reviewModal) reviewModal.classList.add('hidden');
+            if (feedbackModal) feedbackModal.classList.add('hidden');
+            if (achievementModal) achievementModal.classList.add('hidden');
+            if (messageBox) messageBox.classList.add('hidden');
+            if (confirmBox) confirmBox.classList.add('hidden');
+
+            applyFiltersAndSort(); // 通常の検索画面に戻るためにフィルタとソートを適用
+        }
+
+        // ==========================================================
+        // アチーブメント関連関数
+        // ==========================================================
+
+        /**
+         * アチーブメントをチェックし、達成していれば付与する
+         */
+        function checkAndAwardAchievements() {
+            const userAchievements = allUserData[currentUserId].achievements;
+            let achievementAwarded = false;
+
+            achievementsData.forEach(ach => {
+                if (!userAchievements.includes(ach.id)) { // 既に達成済みのアチーブメントはスキップ
+                    let earned = false;
+
+                    if (ach.criteria.type === 'view_count') {
+                        // オブジェクトのキーを文字列として取得し、数値に変換してソート
+                        const totalViewedShops = Object.keys(allUserData[currentUserId].viewCounts || {}).length; // nullチェックを追加
+                        if (totalViewedShops >= ach.criteria.count) {
+                            earned = true;
+                        }
+                    } else if (ach.criteria.type === 'like_count') {
+                        const userLikedShopCount = allUserData[currentUserId].likedShopIds ? allUserData[currentUserId].likedShopIds.size : 0; // nullチェックを追加
+                        if (userLikedShopCount >= ach.criteria.count) {
+                            earned = true;
+                        }
+                    } else if (ach.criteria.type === 'review_count') {
+                        // 現在のユーザーが投稿した口コミの数をカウント
+                        const reviewsByCurrentUser = shops.reduce((count, shop) => {
+                            return count + (shop.reviews ? shop.reviews.filter(r => r.userId === currentUserId).length : 0);
+                        }, 0);
+                        if (reviewsByCurrentUser >= ach.criteria.count) {
+                            earned = true;
+                        }
+                    }
+
+                    if (earned) {
+                        userAchievements.push(ach.id);
+                        achievementAwarded = true;
+                        showMessageBox(`アチーブメント達成！: ${ach.name} - ${ach.description}`);
+                    }
+                }
+            });
+
+            if (achievementAwarded) {
+                saveAllUserData(); // アチーブメントが更新されたら保存
+                // もし実績一覧が表示中なら更新をトリガー
+                if (currentDisplayMode === 'myAchievements') {
+                    renderMyAchievements();
+                }
+                // 実績ランキングが表示中なら更新をトリガー
+                if (currentDisplayMode === 'achievementRanking') {
+                    renderAchievementRanking();
+                }
+            }
+        }
+
+        /**
+         * 現在のユーザーが達成したアチーブメントを表示する
+         */
+        function renderMyAchievements() {
+            currentDisplayMode = 'myAchievements';
+            if (shopListContainer) shopListContainer.innerHTML = '';
+            const searchSectionTitle = document.querySelector('#searchFilterSection h2');
+            if (searchSectionTitle) {
+                searchSectionTitle.textContent = '私の実績';
+            }
+            if (searchControls) searchControls.classList.add('hidden');
+            if (sortControls) sortControls.classList.add('hidden');
+            if (actionButtons) actionButtons.classList.add('hidden');
+
+            const myAchievementsWrapper = document.createElement('div');
+            myAchievementsWrapper.className = 'col-span-full flex flex-col gap-4';
+
+            const earnedAchievementIds = allUserData[currentUserId].achievements || []; // nullチェックを追加
+            const earnedAchievements = achievementsData.filter(ach => earnedAchievementIds.includes(ach.id));
+
+            if (earnedAchievements.length > 0) {
+                earnedAchievements.forEach(ach => {
+                    const achievementCard = document.createElement('div');
+                    // カードスタイルと削除ボタンを追加
+                    achievementCard.className = 'card relative';
+                    achievementCard.innerHTML = `
+                        <h4 class="text-lg font-bold mb-2 text-textPrimary">✨ ${ach.name}</h4>
+                        <p class="text-textSecondary">${ach.description}</p>
+                        ${isAdminMode ? `
+                            <button class="delete-my-achievement-btn absolute top-3 right-3 bg-gray-200 text-gray-700 rounded-full w-7 h-7 flex items-center justify-center text-sm font-bold" data-achievement-id="${ach.id}" aria-label="${ach.name}の実績を削除">X</button>
+                        ` : ''}
+                    `;
+                    myAchievementsWrapper.appendChild(achievementCard);
+                });
+
+                // イベントリスナーを追加
+                myAchievementsWrapper.querySelectorAll('.delete-my-achievement-btn').forEach(button => {
+                    button.addEventListener('click', (event) => {
+                        const achievementId = event.target.dataset.achievementId;
+                        deleteMyAchievement(achievementId);
+                    });
+                });
+
+            } else {
+                myAchievementsWrapper.innerHTML = '<p class="text-center text-textSecondary text-lg col-span-full py-8">まだ達成した実績はありません。頑張ってお店を検索・閲覧してみましょう！</p>';
+            }
+            if (shopListContainer) shopListContainer.appendChild(myAchievementsWrapper);
+
+            // 「お店を探すに戻る」ボタン
+            const backButton = document.createElement('button');
+            backButton.className = 'mt-6 btn btn-neutral self-center'; // 中央揃え
+            backButton.textContent = 'お店を探すに戻る';
+            backButton.setAttribute('aria-label', 'お店検索ページに戻る');
+            backButton.addEventListener('click', backToShopSearch);
+            myAchievementsWrapper.appendChild(backButton);
+        }
+
+        /**
+         * 全ユーザーの実績数ランキングを表示する
+         */
+        function renderAchievementRanking() {
+            currentDisplayMode = 'achievementRanking';
+            if (shopListContainer) shopListContainer.innerHTML = '';
+            const searchSectionTitle = document.querySelector('#searchFilterSection h2');
+            if (searchSectionTitle) {
+                searchSectionTitle.textContent = '実績数ランキング';
+            }
+            if (searchControls) searchControls.classList.add('hidden');
+            if (sortControls) sortControls.classList.add('hidden');
+            if (actionButtons) actionButtons.classList.add('hidden');
+
+            const userAchievementCounts = [];
+            for (const userId in allUserData) {
+                const userAchievements = allUserData[userId] ? (allUserData[userId].achievements || []) : []; // nullチェックを追加
+                userAchievementCounts.push({
+                    userId: userId,
+                    achievementCount: userAchievements.length
+                });
+            }
+
+            // 実績数が多い順にソート
+            userAchievementCounts.sort((a, b) => b.achievementCount - a.achievementCount);
+
+            let rankingHtml = `
+                <div class="col-span-full card">
+                    <h3 class="text-2xl font-bold mb-4 text-textPrimary">実績数ランキング (全ユーザー)</h3>
+                    ${isAdminMode ? `
+                        <button id="clearAllAchievementsButton" class="btn btn-danger-red mb-4 mr-2" aria-label="すべての実績を削除">
+                            すべての実績を削除
+                        </button>
+                    ` : ''}
+                    <table class="ranking-table">
+                        <thead>
+                            <tr>
+                                <th>順位</th>
+                                <th>ユーザーID (短縮)</th>
+                                <th>実績数</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+            `;
+
+            if (userAchievementCounts.length > 0) {
+                userAchievementCounts.forEach((user, index) => {
+                    rankingHtml += `
+                        <tr>
+                            <td>${index + 1}</td>
+                            <td>${user.userId.substring(0, 8)}...${user.userId === currentUserId ? ' (あなた)' : ''}</td>
+                            <td>${user.achievementCount}</td>
+                        </tr>
+                    `;
+                });
+            } else {
+                rankingHtml += `
+                    <tr>
+                        <td colspan="3" class="text-center text-textSecondary py-4">まだ実績を持つユーザーはいません。</td>
+                    </tr>
+                `;
+            }
+
+            rankingHtml += `
+                        </tbody>
+                    </table>
+                    <p class="mt-4 text-sm text-textSecondary opacity-80">※ 週次・月次ランキングの機能は現在開発中です。</p>
+                    <button id="backToSearchButton" class="mt-6 btn btn-neutral self-center" aria-label="お店検索ページに戻る">
+                        お店を探すに戻る
+                    </button>
+                </div>
+            `;
+            if (shopListContainer) shopListContainer.innerHTML = rankingHtml;
+
+            if (isAdminMode) {
+                const clearAllAchievementsButton = document.getElementById('clearAllAchievementsButton');
+                if (clearAllAchievementsButton) {
+                    clearAllAchievementsButton.addEventListener('click', clearAllAchievements);
+                }
+            }
+            const backToSearchButton = document.getElementById('backToSearchButton');
+            if (backToSearchButton) {
+                backToSearchButton.addEventListener('click', backToShopSearch);
+            }
+        }
+
+
+        // ==========================================================
+        // UI レンダリング関数
+        // ==========================================================
+
+        /**
+         * お店カードをレンダリングする関数
+         * @param {Array<Object>} filteredShops - フィルターされたお店のデータ配列
+         */
+        function renderShops(filteredShops) {
+            if (!shopListContainer) {
+                console.error("shopListContainerが見つかりません。");
+                return;
+            }
+            shopListContainer.innerHTML = ''; // 既存のコンテンツをクリア
+
+            if (filteredShops.length === 0) {
+                shopListContainer.innerHTML = '<p class="text-center text-textSecondary text-lg col-span-full py-8">条件に合うお店は見つかりませんでした。</p>';
+                return;
+            }
+
+            filteredShops.forEach(shop => {
+                // ハートの状態をallUserData[currentUserId].likedShopIds (Set) を使って判定
+                const isLiked = allUserData[currentUserId].likedShopIds.has(shop.id);
+                const heartButtonClass = isLiked ? 'liked' : 'unliked';
+                const heartIcon = isLiked ? '❤️' : '🤍'; // Filled heart or empty heart
+
+                const shopCard = document.createElement('div');
+                shopCard.className = 'card'; // Cardスタイルを適用
+                shopCard.innerHTML = `
+                    <div>
+                        <h3 class="text-xl font-bold mb-2 text-textPrimary">${shop.name}</h3>
+                        <p class="text-textSecondary mb-1"><strong>カテゴリ:</strong> ${shop.category}</p>
+                        <p class="text-textSecondary mb-1"><strong>地域:</strong> ${shop.area}</p>
+                        <p class="text-textSecondary mb-1"><strong>料金:</strong> ${shop.price}</p>
+                        <p class="text-textSecondary mb-1"><strong>時間:</strong> ${shop.time}</p>
+                        <p class="text-textSecondary mb-1"><strong>最寄駅:</strong> ${shop.nearestStation} (${shop.distance}km)</p>
+                        <p class="text-textSecondary mb-1"><strong>混雑状況:</strong> <span class="font-semibold">${shop.waitingTime}</span></p>
+                        <p class="text-textSecondary mt-3 text-sm">${shop.description}</p>
+                        <p class="text-textSecondary text-sm mt-2">このお店は<strong class="text-primary">${Object.keys(allUserData[currentUserId].viewCounts || {}).includes(String(shop.id)) ? allUserData[currentUserId].viewCounts[shop.id] : 0}</strong>回閲覧しました。</p>
+                    </div>
+                    <div class="mt-6 flex flex-col space-y-3">
+                        <button class="view-details-btn btn btn-special w-full" data-shop-id="${shop.id}" data-homepage="${shop.homepage}" aria-label="${shop.name}の詳細を見る">
+                            詳細を見る
+                        </button>
+                        <button class="add-review-btn btn btn-positive w-full" data-shop-id="${shop.id}" aria-label="${shop.name}の口コミを追加">
+                            口コミを追加
+                        </button>
+                        <button class="heart-button ${heartButtonClass} w-full" data-shop-id="${shop.id}" data-is-liked="${isLiked}" aria-label="${shop.name}に${isLiked ? 'いいね済み' : 'いいね'}">
+                            <span class="heart-icon">${heartIcon}</span>
+                            <span>${shop.hearts}</span>
+                        </button>
+                        ${shop.reviews && shop.reviews.length > 0 ? // reviewsプロパティの存在チェック
+                            `<button class="toggle-reviews-btn btn btn-info-blue w-full mt-2" data-shop-id="${shop.id}" aria-expanded="false" aria-controls="reviews-for-${shop.id}">
+                                口コミを表示
+                            </button>`
+                            : ''
+                        }
+                        <div id="reviews-for-${shop.id}" class="reviews-section mt-4 border-t border-gray-200 pt-4 hidden">
+                            <h4 class="font-semibold text-textPrimary mb-2">口コミ:</h4>
+                            ${isAdminMode && shop.reviews && shop.reviews.length > 0 ? // reviewsプロパティの存在チェック
+                                `<button class="clear-all-shop-reviews-btn btn btn-danger-red text-xs px-2 py-1 mb-2" data-shop-id="${shop.id}" aria-label="このお店の口コミをすべて削除">このお店の口コミをすべて削除</button>`
+                                : ''
+                            }
+                            ${shop.reviews && shop.reviews.length > 0 ? // reviewsプロパティの存在チェック
+                                shop.reviews.map((review, reviewIndex) => `
+                                    <div class="bg-gray-100 p-3 rounded-lg mb-2 relative border border-gray-200">
+                                        <p class="font-bold text-textPrimary">${review.name}</p>
+                                        <p class="text-textSecondary text-sm">${review.comment}</p>
+                                        ${isAdminMode ?
+                                            `<button class="delete-individual-review-btn absolute top-2 right-2 bg-gray-300 text-gray-700 rounded-full w-6 h-6 flex items-center justify-center text-xs font-bold" data-shop-id="${shop.id}" data-review-index="${reviewIndex}" aria-label="この口コミを削除">X</button>`
+                                            : ''
+                                        }
+                                    </div>
+                                `).join('')
+                                : '<p class="text-textSecondary text-sm">まだ口コミはありません。</p>'
+                            }
+                        </div>
+                    </div>
+                `;
+                shopListContainer.appendChild(shopCard);
+            });
+
+            // イベントリスナーの再設定 (動的に追加される要素のため)
+            document.querySelectorAll('.view-details-btn').forEach(button => {
+                button.addEventListener('click', (event) => {
+                    const shopId = parseInt(event.target.dataset.shopId);
+                    incrementShopViewCount(shopId); // 閲覧数をインクリメントし、アチーブメントをチェック
+                    const homepageUrl = event.target.dataset.homepage;
+                    if (homepageUrl) {
+                        window.open(homepageUrl, '_blank');
+                    } else {
+                        console.warn("ホームページURLが未設定です。");
+                        showMessageBox("このお店のホームページURLは登録されていません。");
+                    }
+                });
+            });
+
+            document.querySelectorAll('.add-review-btn').forEach(button => {
+                button.addEventListener('click', (event) => {
+                    const shopId = parseInt(event.target.dataset.shopId);
+                    currentShopForReview = shops.find(s => s.id === shopId);
+                    if (currentShopForReview) {
+                        if (reviewModalTitle) reviewModalTitle.textContent = `${currentShopForReview.name} の口コミを追加`;
+                        if (currentShopIdInput) currentShopIdInput.value = shopId;
+                        if (reviewerNameInput) reviewerNameInput.value = '';
+                        if (reviewCommentInput) reviewCommentInput.value = '';
+                        if (reviewModal) reviewModal.classList.remove('hidden');
+                        if (reviewerNameInput) reviewerNameInput.focus(); // モーダルが開いたら名前にフォーカス
+                    } else {
+                        console.error(`レビュー対象のショップIDが見つかりません: ${shopId}`);
+                        showMessageBox("口コミを追加するお店が見つかりませんでした。");
+                    }
+                });
+            });
+
+            document.querySelectorAll('.toggle-reviews-btn').forEach(button => {
+                button.addEventListener('click', (event) => {
+                    const shopCard = event.target.closest('.card');
+                    if (shopCard) {
+                        const reviewsSection = shopCard.querySelector('.reviews-section');
+                        if (reviewsSection) {
+                            const isExpanded = reviewsSection.classList.contains('hidden');
+                            reviewsSection.classList.toggle('hidden');
+                            button.setAttribute('aria-expanded', !isExpanded);
+                            if (isExpanded) {
+                                event.target.textContent = '口コミを隠す';
+                            } else {
+                                event.target.textContent = '口コミを表示';
+                            }
+                        } else {
+                            console.warn("レビューセクションが見つかりませんでした。");
+                        }
+                    }
+                });
+            });
+
+            document.querySelectorAll('.heart-button').forEach(button => {
+                button.addEventListener('click', (event) => {
+                    const shopId = parseInt(event.currentTarget.dataset.shopId);
+                    const shop = shops.find(s => s.id === shopId);
+
+                    if (!shop) {
+                        console.error(`ハート操作対象のショップIDが見つかりません: ${shopId}`);
+                        showMessageBox("このお店は存在しません。");
+                        return;
+                    }
+
+                    const isCurrentlyLiked = allUserData[currentUserId].likedShopIds.has(shop.id);
+
+                    if (isAdminMode) {
+                        // 管理者モードでは何度でも押せる
+                        if (isCurrentlyLiked) {
+                            shop.hearts = Math.max(0, shop.hearts - 1);
+                            allUserData[currentUserId].likedShopIds.delete(shop.id);
+                        } else {
+                            shop.hearts += 1;
+                            allUserData[currentUserId].likedShopIds.add(shop.id);
+                        }
+                    } else {
+                        // 通常モードでは1回だけ押せる
+                        if (!isCurrentlyLiked) {
+                            shop.hearts += 1;
+                            allUserData[currentUserId].likedShopIds.add(shop.id);
+                        } else {
+                            // すでにいいねしている場合（取り消し）
+                            shop.hearts = Math.max(0, shop.hearts - 1);
+                            allUserData[currentUserId].likedShopIds.delete(shop.id);
+                        }
+                    }
+                    saveShopsToLocalStorage();
+                    saveAllUserData(); // allUserDataも保存
+                    checkAndAwardAchievements(); // アチーブメントをチェック
+                    applyFiltersAndSort(); // 再レンダリングして更新を反映
+                });
+            });
+
+            document.querySelectorAll('.clear-all-shop-reviews-btn').forEach(button => {
+                button.addEventListener('click', (event) => {
+                    const shopId = parseInt(event.target.dataset.shopId);
+                    clearAllShopReviews(shopId);
+                });
+            });
+
+            if (shopListContainer) {
+                shopListContainer.addEventListener('click', async (event) => {
+                    if (event.target.classList.contains('delete-individual-review-btn')) {
+                        const shopId = parseInt(event.target.dataset.shopId);
+                        const reviewIndex = parseInt(event.target.dataset.reviewIndex);
+                        deleteIndividualReview(shopId, reviewIndex);
+                    }
+                });
+            }
+        }
+
+        /**
+         * 全ての口コミを取得するヘルパー関数
+         * @returns {Array<Object>} 全ての口コミの配列
+         */
+        function getAllReviews() {
+            let allReviews = [];
+            shops.forEach(s => {
+                if (s.reviews && s.reviews.length > 0) {
+                    s.reviews.forEach((review, index) => {
+                        allReviews.push({
+                            shopName: s.name,
+                            reviewerName: review.name,
+                            comment: review.comment,
+                            shopId: s.id,
+                            reviewIndexInShop: index,
+                            userId: review.userId // userIdも渡す
+                        });
+                    });
+                }
+            });
+            return allReviews;
+        }
+
+        /**
+         * フィードバックアイテムをレンダリングする関数
+         * @param {Array<Object>} items - 表示するフィードバックアイテムの配列
+         */
+        function renderFeedbackItems(items) {
+            currentDisplayMode = 'feedback';
+            if (!shopListContainer) {
+                console.error("shopListContainerが見つかりません。");
+                return;
+            }
+            shopListContainer.innerHTML = ''; // 既存のコンテンツをクリア
+
+            const searchSectionTitle = document.querySelector('#searchFilterSection h2');
+            if (searchSectionTitle) {
+                searchSectionTitle.textContent = 'フィードバック一覧';
+            }
+            if (searchControls) searchControls.classList.add('hidden');
+            if (sortControls) sortControls.classList.add('hidden');
+            if (actionButtons) actionButtons.classList.add('hidden');
+
+            const feedbackWrapper = document.createElement('div');
+            feedbackWrapper.className = 'col-span-full flex flex-col gap-4';
+
+            if (items.length > 0) {
+                if (isAdminMode) {
+                    const deleteAllButton = document.createElement('button');
+                    deleteAllButton.id = 'deleteAllFeedbackButton';
+                    deleteAllButton.className = 'btn btn-danger-red self-end mb-4';
+                    deleteAllButton.textContent = 'すべてのフィードバックを削除';
+                    deleteAllButton.setAttribute('aria-label', 'すべてのフィードバックを削除');
+                    deleteAllButton.addEventListener('click', clearAllFeedback);
+                    feedbackWrapper.appendChild(deleteAllButton);
+                }
+
+                items.forEach((feedback) => {
+                    const feedbackCard = document.createElement('div');
+                    feedbackCard.className = 'card relative';
+                    feedbackCard.innerHTML = `
+                        <h4 class="text-lg font-bold mb-2 text-textPrimary">フィードバック</h4>
+                        <p class="text-textSecondary mb-1"><strong>名前:</strong> ${feedback.name || '匿名'}</p>
+                        <p class="text-textSecondary mb-1"><strong>メール:</strong> ${feedback.email || 'なし'}</p>
+                        <div class="mt-2 p-3 bg-gray-100 rounded-lg border border-gray-200">
+                            <p class="text-textPrimary text-sm">${feedback.message}</p>
+                        </div>
+                    `;
+                    if (isAdminMode) {
+                        const deleteButton = document.createElement('button');
+                        // deleteButtonのスタイルからhover効果を削除
+                        deleteButton.className = 'delete-feedback-btn absolute top-3 right-3 bg-gray-200 text-gray-700 rounded-full w-7 h-7 flex items-center justify-center text-sm font-bold';
+                        deleteButton.textContent = 'X';
+                        deleteButton.dataset.id = feedback.id; // ローカルIDを保存
+                        deleteButton.setAttribute('aria-label', 'このフィードバックを削除');
+                        deleteButton.addEventListener('click', (event) => {
+                            const feedbackIdToDelete = event.target.dataset.id;
+                            deleteIndividualFeedback(feedbackIdToDelete);
+                        });
+                        feedbackCard.appendChild(deleteButton);
+                    }
+                    feedbackWrapper.appendChild(feedbackCard);
+                });
+            } else {
+                feedbackWrapper.innerHTML = '<p class="text-center text-textSecondary text-lg col-span-full py-8">まだフィードバックはありません。</p>';
+            }
+            shopListContainer.appendChild(feedbackWrapper);
+
+            // 「お店を探すに戻る」ボタン
+            const backButton = document.createElement('button');
+            backButton.className = 'mt-6 btn btn-neutral self-center';
+            backButton.textContent = 'お店を探すに戻る';
+            backButton.setAttribute('aria-label', 'お店検索ページに戻る');
+            backButton.addEventListener('click', backToShopSearch);
+            shopListContainer.appendChild(backButton); // shopListContainerの子要素として追加
+        }
+
+        /**
+         * KTCカテゴリで口コミをレンダリングする関数
+         * @param {Array<Object>} allReviews - 表示する全ての口コミの配列
+         */
+        function renderReviewsAsKTC(allReviews) {
+            currentDisplayMode = 'reviews';
+            if (!shopListContainer) {
+                console.error("shopListContainerが見つかりません。");
+                return;
+            }
+            shopListContainer.innerHTML = ''; // 既存のコンテンツをクリア
+
+            const searchSectionTitle = document.querySelector('#searchFilterSection h2');
+            if (searchSectionTitle) {
+                searchSectionTitle.textContent = '口コミ一覧';
+            }
+            if (searchControls) searchControls.classList.add('hidden');
+            if (sortControls) sortControls.classList.add('hidden');
+            if (actionButtons) actionButtons.classList.add('hidden');
+
+            const reviewsWrapper = document.createElement('div');
+            reviewsWrapper.className = 'col-span-full flex flex-col gap-4';
+
+            if (allReviews.length > 0) {
+                if (isAdminMode) {
+                    const deleteAllReviewsButton = document.createElement('button');
+                    deleteAllReviewsButton.id = 'deleteAllKTCReviewsButton';
+                    deleteAllReviewsButton.className = 'btn btn-danger-red self-end mb-4';
+                    deleteAllReviewsButton.textContent = 'すべての口コミを削除';
+                    deleteAllReviewsButton.setAttribute('aria-label', 'すべての口コミを削除');
+                    deleteAllReviewsButton.addEventListener('click', clearAllKTCReviews);
+                    reviewsWrapper.appendChild(deleteAllReviewsButton);
+                }
+
+                allReviews.forEach(review => {
+                    const reviewCard = document.createElement('div');
+                    reviewCard.className = 'card relative';
+                    reviewCard.innerHTML = `
+                        <h4 class="text-lg font-bold mb-2 text-textPrimary">お店: ${review.shopName}</h4>
+                        <p class="text-textSecondary mb-1"><strong>投稿者:</strong> ${review.reviewerName}</p>
+                        <div class="mt-2 p-3 bg-gray-100 rounded-lg border border-gray-200">
+                            <p class="text-textPrimary text-sm">${review.comment}</p>
+                        </div>
+                    `;
+                    if (isAdminMode) {
+                        const deleteButton = document.createElement('button');
+                        // deleteButtonのスタイルからhover効果を削除
+                        deleteButton.className = 'delete-individual-review-btn absolute top-3 right-3 bg-gray-200 text-gray-700 rounded-full w-7 h-7 flex items-center justify-center text-sm font-bold';
+                        deleteButton.textContent = 'X';
+                        deleteButton.dataset.shopId = review.shopId; // 元の店舗IDをデータ属性として保存
+                        deleteButton.dataset.reviewIndex = review.reviewIndexInShop; // 元のレビューインデックスをデータ属性として保存
+                        deleteButton.setAttribute('aria-label', 'この口コミを削除');
+                        deleteButton.addEventListener('click', (event) => {
+                            const targetShopId = parseInt(event.target.dataset.shopId);
+                            const targetReviewIndex = parseInt(event.target.dataset.reviewIndex);
+                            deleteIndividualReview(targetShopId, targetReviewIndex);
+                        });
+                        reviewCard.appendChild(deleteButton);
+                    }
+                    reviewsWrapper.appendChild(reviewCard);
+                });
+            } else {
+                reviewsWrapper.innerHTML = '<p class="text-center text-textSecondary text-lg col-span-full py-8">まだ口コミはありません。</p>';
+            }
+            shopListContainer.appendChild(reviewsWrapper);
+
+            // 「お店を探すに戻る」ボタン
+            const backButton = document.createElement('button');
+            backButton.className = 'mt-6 btn btn-neutral self-center';
+            backButton.textContent = 'お店を探すに戻る';
+            backButton.setAttribute('aria-label', 'お店検索ページに戻る');
+            backButton.addEventListener('click', backToShopSearch);
+            shopListContainer.appendChild(backButton);
+        }
+
+        /**
+         * ランキングを表示する関数
+         */
+        function renderRanking() {
+            currentDisplayMode = 'ranking';
+            if (!shopListContainer) {
+                console.error("shopListContainerが見つかりません。");
+                return;
+            }
+            shopListContainer.innerHTML = '';
+            const searchSectionTitle = document.querySelector('#searchFilterSection h2');
+            if (searchSectionTitle) {
+                searchSectionTitle.textContent = 'お店のハートランキング (全期間)';
+            }
+            if (searchControls) searchControls.classList.add('hidden');
+            if (sortControls) sortControls.classList.add('hidden');
+            if (actionButtons) actionButtons.classList.add('hidden');
+
+            // まずは全期間のハート数でソート
+            const sortedShops = [...shops].sort((a, b) => b.hearts - a.hearts);
+
+            let rankingHtml = `
+                <div class="col-span-full card">
+                    <h3 class="text-2xl font-bold mb-4 text-textPrimary">お店のハートランキング (全期間)</h3>
+                    ${isAdminMode ? `
+                        <button id="clearAllHeartsButton" class="btn btn-danger-red mb-4 mr-2" aria-label="すべてのハートを削除">
+                            すべてのハートを削除
+                        </button>
+                    ` : ''}
+                    <table class="ranking-table">
+                        <thead>
+                            <tr>
+                                <th>順位</th>
+                                <th>お店の名前</th>
+                                <th>ハート数 ❤️</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+            `;
+
+            if (sortedShops.length > 0) {
+                sortedShops.forEach((shop, index) => {
+                    rankingHtml += `
+                        <tr>
+                            <td>${index + 1}</td>
+                            <td>${shop.name}</td>
+                            <td>${shop.hearts}</td>
+                        </tr>
+                    `;
+                });
+            } else {
+                rankingHtml += `
+                    <tr>
+                        <td colspan="3" class="text-center text-textSecondary py-4">まだハートが付いたお店はありません。</td>
+                    </tr>
+                `;
+            }
+
+            rankingHtml += `
+                        </tbody>
+                    </table>
+                    <p class="mt-4 text-sm text-textSecondary opacity-80">※ 週次・月次ランキングの機能は現在開発中です。</p>
+                    <button id="backToSearchButton" class="mt-6 btn btn-neutral self-center" aria-label="お店検索ページに戻る">
+                        お店を探すに戻る
+                    </button>
+                </div>
+            `;
+            if (shopListContainer) shopListContainer.innerHTML = rankingHtml;
+
+            if (isAdminMode) {
+                const clearAllHeartsButton = document.getElementById('clearAllHeartsButton');
+                if (clearAllHeartsButton) {
+                    clearAllHeartsButton.addEventListener('click', clearAllHearts);
+                }
+            }
+            const backToSearchButton = document.getElementById('backToSearchButton');
+            if (backToSearchButton) {
+                backToSearchButton.addEventListener('click', backToShopSearch);
+            }
+        }
+
+        /**
+         * フィルタリングと並び替えを適用し、お店を再レンダリングする関数
+         */
+        function applyFiltersAndSort() {
+            // currentDisplayMode が 'shops' の場合のみフィルタリングとソートを行う
+            if (currentDisplayMode !== 'shops') {
+                return; // 他のビュー表示中は何もしない
+            }
+
+            let filtered = [...shops];
+
+            const searchName = nameSearchInput ? nameSearchInput.value.toLowerCase() : '';
+            const selectedCategory = categoryFilter ? categoryFilter.value : 'all';
+            const selectedArea = areaFilter ? areaFilter.value : 'all';
+            const selectedPrice = priceFilter ? priceFilter.value : 'all';
+            const selectedTime = timeFilter ? timeFilter.value : 'all';
+
+            // 名前検索フィルター
+            if (searchName) {
+                filtered = filtered.filter(shop => shop.name.toLowerCase().includes(searchName));
+            }
+            // カテゴリフィルター
+            if (selectedCategory !== 'all') {
+                filtered = filtered.filter(shop => shop.category === selectedCategory);
+            }
+            // 地域フィルター
+            if (selectedArea !== 'all') {
+                filtered = filtered.filter(shop => shop.area === selectedArea);
+            }
+            // 料金フィルター
+            if (selectedPrice !== 'all') {
+                filtered = filtered.filter(shop => shop.price === selectedPrice);
+            }
+            // 時間フィルター
+            if (selectedTime !== 'all') {
+                filtered = filtered.filter(shop => shop.time === selectedTime);
+            }
+
+            // 並び替えロジック
+            const currentSortOrder = sortOrder ? sortOrder.value : 'nameAsc';
+            if (currentSortOrder === 'nameAsc') {
+                filtered.sort((a, b) => a.name.localeCompare(b.name, 'ja'));
+            } else if (currentSortOrder === 'nameDesc') {
+                filtered.sort((a, b) => b.name.localeCompare(a.name, 'ja'));
+            } else if (currentSortOrder === 'distanceAsc') {
+                filtered.sort((a, b) => a.distance - b.distance);
+            }
+
+            renderShops(filtered);
+        }
+
+        /**
+         * オートコンプリート候補を表示する関数
+         */
+        function showAutocompleteSuggestions() {
+            const inputValue = nameSearchInput ? nameSearchInput.value.toLowerCase() : '';
+            if (!autocompleteSuggestions) {
+                console.error("autocompleteSuggestionsが見つかりません。");
+                return;
+            }
+            autocompleteSuggestions.innerHTML = '';
+            currentAutocompleteSelection = -1; // 選択状態をリセット
+
+            if (inputValue.length === 0) {
+                autocompleteSuggestions.classList.add('hidden');
+                return;
+            }
+
+            const matchingShops = shops.filter(shop =>
+                shop.name.toLowerCase().includes(inputValue)
+            );
+
+            if (matchingShops.length > 0) {
+                // 最大5件の候補を表示
+                matchingShops.slice(0, 5).forEach((shop) => {
+                    const suggestionDiv = document.createElement('div');
+                    suggestionDiv.classList.add('autocomplete-suggestion');
+                    suggestionDiv.textContent = shop.name;
+                    suggestionDiv.dataset.shopName = shop.name; // クリック時に使うために店名をデータ属性に保存
+
+                    suggestionDiv.addEventListener('click', () => {
+                        if (nameSearchInput) nameSearchInput.value = shop.name;
+                        autocompleteSuggestions.classList.add('hidden');
+                        applyFiltersAndSort(); // 選択されたらフィルタリングを実行
+                    });
+                    autocompleteSuggestions.appendChild(suggestionDiv);
+                });
+                autocompleteSuggestions.classList.remove('hidden');
+            } else {
+                autocompleteSuggestions.classList.add('hidden');
+            }
+        }
+
+        /**
+         * オートコンプリート候補の選択をキーボードで管理する関数
+         * @param {KeyboardEvent} e - キーボードイベントオブジェクト
+         */
+        function navigateAutocomplete(e) {
+            if (!autocompleteSuggestions) return; // autocompleteSuggestionsがnullの場合に早期リターン
+            const suggestions = autocompleteSuggestions.querySelectorAll('.autocomplete-suggestion');
+            if (suggestions.length === 0) return;
+
+            if (e.key === 'ArrowDown') {
+                e.preventDefault(); // カーソル移動を防ぐ
+                currentAutocompleteSelection = (currentAutocompleteSelection + 1) % suggestions.length;
+            } else if (e.key === 'ArrowUp') {
+                e.preventDefault(); // カーソル移動を防ぐ
+                currentAutocompleteSelection = (currentAutocompleteSelection - 1 + suggestions.length) % suggestions.length;
+            } else if (e.key === 'Enter') {
+                e.preventDefault(); // フォーム送信を防ぐ
+                if (currentAutocompleteSelection > -1 && nameSearchInput) {
+                    nameSearchInput.value = suggestions[currentAutocompleteSelection].dataset.shopName;
+                    autocompleteSuggestions.classList.add('hidden');
+                    applyFiltersAndSort();
+                }
+            }
+
+            // 選択された候補にハイライトを適用
+            suggestions.forEach((s, i) => {
+                if (i === currentAutocompleteSelection) {
+                    s.classList.add('selected');
+                    s.focus(); // フォーカスを移動 (オプション)
+                } else {
+                    s.classList.remove('selected');
+                }
+            });
+        }
+
+        /**
+         * カスタムメッセージボックスを表示する関数
+         * @param {string} message - 表示するメッセージ
+         */
+        function showMessageBox(message) {
+            if (messageBoxContent && messageBox && closeMessageBoxButton) {
+                messageBoxContent.textContent = message;
+                messageBox.classList.remove('hidden');
+                closeMessageBoxButton.focus(); // メッセージボックスが開いたらOKボタンにフォーカス
+            } else {
+                console.error("MessageBox elements not fully loaded or missing.");
+            }
+        }
+
+        /**
+         * カスタム確認ボックスを表示する関数
+         * @param {string} message - 表示する確認メッセージ
+         * @returns {Promise<boolean>} ユーザーが「確認」をクリックしたら true、それ以外は false
+         */
+        function showConfirmBox(message) {
+            return new Promise((resolve) => {
+                if (!confirmBoxContent || !confirmBox || !confirmBoxOk || !confirmBoxCancel) {
+                    console.error("ConfirmBox elements not fully loaded or missing.");
+                    resolve(false);
+                    return;
+                }
+                confirmBoxContent.textContent = message;
+                confirmBox.classList.remove('hidden');
+                confirmBoxOk.focus(); // 確認ボックスが開いたら確認ボタンにフォーカス
+
+                const handleOk = () => {
+                    confirmBox.classList.add('hidden');
+                    // イベントリスナーを削除して、複数回呼び出しを防ぐ
+                    confirmBoxOk.removeEventListener('click', handleOk);
+                    confirmBoxCancel.removeEventListener('click', handleCancel);
+                    confirmBox.removeEventListener('click', handleOverlayClick);
+                    resolve(true);
+                };
+
+                const handleCancel = () => {
+                    confirmBox.classList.add('hidden');
+                    confirmBoxOk.removeEventListener('click', handleOk);
+                    confirmBoxCancel.removeEventListener('click', handleCancel);
+                    confirmBox.removeEventListener('click', handleOverlayClick);
+                    resolve(false);
+                };
+
+                const handleOverlayClick = (event) => {
+                    if (event.target === confirmBox) { // オーバーレイ自体がクリックされた場合
+                        handleCancel(); // キャンセルとして扱う
+                    }
+                };
+
+                confirmBoxOk.addEventListener('click', handleOk);
+                confirmBoxCancel.addEventListener('click', handleCancel);
+                confirmBox.addEventListener('click', handleOverlayClick);
+            });
+        }
+
+        /**
+         * 管理者モードを切り替える関数
+         */
+        function toggleAdminMode() {
+            isAdminMode = !isAdminMode;
+            if (isAdminMode) {
+                if (adminModeIndicator) {
+                    adminModeIndicator.classList.remove('hidden');
+                }
+                showMessageBox('管理者モードが有効になりました。フィードバックおよび各お店の口コミに削除ボタンが表示されます。また、ハートボタンも複数回押せるようになります。');
+            } else {
+                if (adminModeIndicator) {
+                    adminModeIndicator.classList.add('hidden');
+                }
+                showMessageBox('管理者モードが無効になりました。');
+            }
+            // 表示モードに応じて再レンダリングをトリガーし、管理機能の表示/非表示を更新
+            if (currentDisplayMode === 'shops') {
+                applyFiltersAndSort();
+            } else if (currentDisplayMode === 'feedback') {
+                renderFeedbackItems(feedbackItems);
+            } else if (currentDisplayMode === 'reviews') {
+                renderReviewsAsKTC(getAllReviews());
+            } else if (currentDisplayMode === 'ranking') {
+                renderRanking();
+            } else if (currentDisplayMode === 'myAchievements') {
+                renderMyAchievements();
+            } else if (currentDisplayMode === 'achievementRanking') {
+                renderAchievementRanking();
+            }
+        }
+
+        // ==========================================================
+        // DOMContentLoaded イベントリスナー
+        // ==========================================================
+        document.addEventListener('DOMContentLoaded', () => {
+            // DOM要素の取得（一元化とNull安全な取得）
+            const getElementByIdSafe = (id) => {
+                const element = document.getElementById(id);
+                if (!element) {
+                    console.error(`Error: Element with ID "${id}" not found.`);
+                }
+                return element;
+            };
+
+            shopListContainer = document.querySelector('.shop-list-container');
+            if (!shopListContainer) console.error("Error: Element with class 'shop-list-container' not found.");
+
+            nameSearchInput = getElementByIdSafe('nameSearchInput');
+            autocompleteSuggestions = getElementByIdSafe('autocompleteSuggestions');
+            categoryFilter = getElementByIdSafe('categoryFilter');
+            areaFilter = getElementByIdSafe('areaFilter');
+            priceFilter = getElementByIdSafe('priceFilter');
+            timeFilter = getElementByIdSafe('timeFilter');
+            sortOrder = getElementByIdSafe('sortOrder');
+            searchButton = getElementByIdSafe('searchButton');
+            resetButton = getElementByIdSafe('resetButton');
+            helpButton = getElementByIdSafe('helpButton');
+            explanationButton = getElementByIdSafe('explanationButton');
+            submitFeedbackButton = getElementByIdSafe('submitFeedbackButton');
+            rankingButton = getElementByIdSafe('rankingButton');
+            ktcButton = getElementByIdSafe('ktcButton');
+            myAchievementsButton = getElementByIdSafe('myAchievementsButton');
+            achievementRankingButton = getElementByIdSafe('achievementRankingButton');
+
+            helpModal = getElementByIdSafe('helpModal');
+            closeHelpModal = getElementByIdSafe('closeHelpModal');
+            explanationModal = getElementByIdSafe('explanationModal');
+            closeExplanationModal = getElementByIdSafe('closeExplanationModal');
+            passwordPromptModal = getElementByIdSafe('passwordPromptModal');
+            passwordInput = getElementByIdSafe('passwordInput');
+            submitPasswordButton = getElementByIdSafe('submitPassword');
+            cancelPasswordInput = getElementByIdSafe('cancelPasswordInput');
+            passwordMessage = getElementByIdSafe('passwordMessage');
+
+            reviewModal = getElementByIdSafe('reviewModal');
+            reviewModalTitle = getElementByIdSafe('reviewModalTitle');
+            reviewForm = getElementByIdSafe('reviewForm');
+            reviewerNameInput = getElementByIdSafe('reviewerName');
+            reviewCommentInput = getElementByIdSafe('reviewComment');
+            currentShopIdInput = getElementByIdSafe('currentShopId');
+            cancelReviewButton = getElementByIdSafe('cancelReview');
+            searchFilterSection = getElementByIdSafe('searchFilterSection');
+            feedbackModal = getElementByIdSafe('feedbackModal');
+            feedbackForm = getElementByIdSafe('feedbackForm');
+            feedbackNameInput = getElementByIdSafe('feedbackName');
+            feedbackEmailInput = getElementByIdSafe('feedbackEmail');
+            feedbackMessageInput = getElementByIdSafe('feedbackMessage');
+            cancelFeedbackButton = getElementByIdSafe('cancelFeedback');
+            achievementModal = getElementByIdSafe('achievementModal');
+            achievementList = getElementByIdSafe('achievementList');
+            closeAchievementModal = getElementByIdSafe('closeAchievementModal');
+            messageBox = getElementByIdSafe('messageBox');
+            messageBoxContent = getElementByIdSafe('messageBoxContent');
+            closeMessageBoxButton = getElementByIdSafe('closeMessageBox');
+            confirmBox = getElementByIdSafe('confirmBox');
+            confirmBoxContent = getElementByIdSafe('confirmBoxContent');
+            confirmBoxOk = getElementByIdSafe('confirmBoxOk');
+            confirmBoxCancel = getElementByIdSafe('confirmBoxCancel');
+            footerCopyright = getElementByIdSafe('footerCopyright');
+            adminModeIndicator = getElementByIdSafe('adminModeIndicator');
+            searchControls = getElementByIdSafe('searchControls');
+            sortControls = getElementByIdSafe('sortControls');
+            actionButtons = getElementByIdSafe('actionButtons');
+            userIdDisplay = getElementByIdSafe('userIdDisplay');
+            currentDateDisplay = getElementByIdSafe('currentDateDisplay');
+
+
+            // 現在のユーザーIDと日付を表示
+            if (userIdDisplay) userIdDisplay.textContent = `ユーザーID: ${currentUserId.substring(0, 8)}`;
+            const today = new Date();
+            const formattedDate = `${today.getFullYear()}年${today.getMonth() + 1}月${today.getDate()}日`;
+            if (currentDateDisplay) currentDateDisplay.textContent = formattedDate;
+
+            // ==========================================================
+            // イベントリスナーの設定
+            // 各要素が存在するかどうかを確認してからイベントリスナーを追加します。
+            // ==========================================================
+
+            // 検索・フィルター関連
+            if (searchButton) searchButton.addEventListener('click', applyFiltersAndSort);
+            if (categoryFilter) categoryFilter.addEventListener('change', applyFiltersAndSort);
+            if (areaFilter) areaFilter.addEventListener('change', applyFiltersAndSort);
+            if (priceFilter) priceFilter.addEventListener('change', applyFiltersAndSort);
+            if (timeFilter) timeFilter.addEventListener('change', applyFiltersAndSort);
+            if (sortOrder) sortOrder.addEventListener('change', applyFiltersAndSort);
+
+            // 検索とリセットボタン
+            if (resetButton) {
+                resetButton.addEventListener('click', () => {
+                    if (nameSearchInput) nameSearchInput.value = '';
+                    if (categoryFilter) categoryFilter.value = 'all';
+                    if (areaFilter) areaFilter.value = 'all';
+                    if (priceFilter) priceFilter.value = 'all';
+                    if (timeFilter) timeFilter.value = 'all';
+                    if (sortOrder) sortOrder.value = 'nameAsc';
+                    if (autocompleteSuggestions) autocompleteSuggestions.classList.add('hidden');
+                    backToShopSearch();
+                });
+            }
+
+            // 名前検索とオートコンプリート
+            if (nameSearchInput) {
+                nameSearchInput.addEventListener('input', showAutocompleteSuggestions);
+                nameSearchInput.addEventListener('keydown', navigateAutocomplete);
+                nameSearchInput.addEventListener('blur', () => {
+                    // 遅延させて、suggestionDivがクリックされた後に隠れるようにする
+                    setTimeout(() => {
+                        if (autocompleteSuggestions) autocompleteSuggestions.classList.add('hidden');
+                    }, 100);
+                });
+            }
+
+            // ヘルプモーダル関連
+            if (helpButton) {
+                helpButton.addEventListener('click', () => {
+                    if (helpModal) helpModal.classList.remove('hidden');
+                    if (closeHelpModal) closeHelpModal.focus();
+                });
+            }
+            if (closeHelpModal) closeHelpModal.addEventListener('click', backToShopSearch);
+            if (helpModal) {
+                helpModal.addEventListener('click', (event) => {
+                    if (event.target === helpModal) {
+                        backToShopSearch();
+                    }
+                });
+            }
+
+            // 説明モーダル（パスワード保護付き）関連
+            if (explanationButton) {
+                explanationButton.addEventListener('click', () => {
+                    if (passwordInput) passwordInput.value = '';
+                    if (passwordMessage) passwordMessage.textContent = '';
+                    if (passwordPromptModal) passwordPromptModal.classList.remove('hidden');
+                    if (passwordInput) passwordInput.focus();
+                });
+            }
+            if (submitPasswordButton) {
+                submitPasswordButton.addEventListener('click', () => {
+                    if (passwordInput && explanationModal && closeExplanationModal && passwordPromptModal && passwordMessage) {
+                        if (passwordInput.value === EXPLANATION_PASSWORD) {
+                            passwordPromptModal.classList.add('hidden');
+                            explanationModal.classList.remove('hidden');
+                            closeExplanationModal.focus();
+                        } else {
+                            passwordMessage.textContent = 'パスワードが間違っています。';
+                            passwordInput.focus();
+                        }
+                    } else {
+                        console.error("パスワードモーダルのDOM要素が不足しています。");
+                    }
+                });
+            }
+            if (passwordInput) {
+                passwordInput.addEventListener('keydown', (event) => {
+                    if (event.key === 'Enter' && submitPasswordButton) {
+                        submitPasswordButton.click();
+                    }
+                });
+            }
+            if (cancelPasswordInput) {
+                cancelPasswordInput.addEventListener('click', () => {
+                    if (passwordPromptModal) passwordPromptModal.classList.add('hidden');
+                });
+            }
+            if (passwordPromptModal) {
+                passwordPromptModal.addEventListener('click', (event) => {
+                    if (event.target === passwordPromptModal) {
+                        if (passwordPromptModal) passwordPromptModal.classList.add('hidden');
+                    }
+                });
+            }
+
+            if (closeExplanationModal) closeExplanationModal.addEventListener('click', backToShopSearch);
+            if (explanationModal) {
+                explanationModal.addEventListener('click', (event) => {
+                    if (event.target === explanationModal) {
+                        backToShopSearch();
+                    }
+                });
+            }
+
+
+            // ナビゲーションボタンクリックイベント
+            if (rankingButton) rankingButton.addEventListener('click', renderRanking);
+            if (ffcViewButton) {
+                ffcViewButton.addEventListener('click', () => {
+                    console.log("ffcViewButton clicked. Current feedbackItems:", feedbackItems); // Debugging
+                    renderFeedbackItems(feedbackItems);
+                });
+            }
+            if (ktcButton) ktcButton.addEventListener('click', () => renderReviewsAsKTC(getAllReviews()));
+            if (myAchievementsButton) myAchievementsButton.addEventListener('click', renderMyAchievements);
+            if (achievementRankingButton) achievementRankingButton.addEventListener('click', renderAchievementRanking);
+            if (submitFeedbackButton) {
+                submitFeedbackButton.addEventListener('click', () => {
+                    // Feedback form is now initialized correctly within the click handler
+                    if (feedbackNameInput) feedbackNameInput.value = '';
+                    if (feedbackEmailInput) feedbackEmailInput.value = '';
+                    if (feedbackMessageInput) feedbackMessageInput.value = '';
+                    if (feedbackModal) feedbackModal.classList.remove('hidden');
+                    if (feedbackNameInput) feedbackNameInput.focus();
+                });
+            }
+
+            // フィードバックモーダル関連
+            if (cancelFeedbackButton) {
+                cancelFeedbackButton.addEventListener('click', () => {
+                    if (feedbackModal) feedbackModal.classList.add('hidden');
+                });
+            }
+            if (feedbackForm) {
+                feedbackForm.addEventListener('submit', (event) => {
+                    event.preventDefault();
+                    const name = feedbackNameInput ? feedbackNameInput.value.trim() : '';
+                    const email = feedbackEmailInput ? feedbackEmailInput.value.trim() : '';
+                    const message = feedbackMessageInput ? feedbackMessageInput.value.trim() : '';
+
+                    if (message) {
+                        const id = Date.now().toString(); // ユニークIDを生成
+                        feedbackItems.push({ id: id, name: name, email: email, message: message });
+                        saveFeedbackItemsToLocalStorage();
+                        if (feedbackModal) feedbackModal.classList.add('hidden');
+                        showMessageBox('フィードバックを送信しました。貴重なご意見ありがとうございます！');
+                        // フィードバック一覧が表示中の場合は、送信後に更新
+                        if (currentDisplayMode === 'feedback') {
+                            renderFeedbackItems(feedbackItems);
+                        }
+                    } else {
+                        showMessageBox('メッセージは必須です。');
+                    }
+                });
+            }
+            if (feedbackModal) {
+                feedbackModal.addEventListener('click', (event) => {
+                    if (event.target === feedbackModal) {
+                        if (feedbackModal) feedbackModal.classList.add('hidden');
+                    }
+                });
+            }
+
+            // 口コミモーダル関連
+            if (reviewForm) {
+                reviewForm.addEventListener('submit', (event) => {
+                    event.preventDefault();
+                    const shopId = currentShopIdInput ? parseInt(currentShopIdInput.value) : null;
+                    const reviewerName = reviewerNameInput ? reviewerNameInput.value.trim() : '';
+                    const reviewComment = reviewCommentInput ? reviewCommentInput.value.trim() : '';
+
+                    if (reviewerName && reviewComment && shopId !== null) {
+                        const shopIndex = shops.findIndex(s => s.id === shopId);
+                        if (shopIndex !== -1) {
+                            shops[shopIndex].reviews.push({ name: reviewerName, comment: reviewComment, userId: currentUserId });
+                            saveShopsToLocalStorage();
+                            checkAndAwardAchievements();
+                            if (currentDisplayMode === 'reviews') {
+                                renderReviewsAsKTC(getAllReviews());
+                            } else if (currentDisplayMode === 'shops') {
+                                applyFiltersAndSort();
+                            }
+                            if (reviewModal) reviewModal.classList.add('hidden');
+                            showMessageBox('口コミを投稿しました！');
+                        } else {
+                            console.error(`ショップが見つかりません: ${shopId}`);
+                            showMessageBox('口コミを投稿するお店が見つかりませんでした。');
+                        }
+                    } else {
+                        showMessageBox('名前とコメントを入力してください。');
+                    }
+                });
+            }
+            if (cancelReviewButton) {
+                cancelReviewButton.addEventListener('click', () => {
+                    if (reviewModal) reviewModal.classList.add('hidden');
+                });
+            }
+            if (reviewModal) {
+                reviewModal.addEventListener('click', (event) => {
+                    if (event.target === reviewModal) {
+                        if (reviewModal) reviewModal.classList.add('hidden');
+                    }
+                });
+            }
+
+            // アチーブメントモーダル関連
+            if (closeAchievementModal) closeAchievementModal.addEventListener('click', backToShopSearch);
+            if (achievementModal) {
+                achievementModal.addEventListener('click', (event) => {
+                    if (event.target === achievementModal) {
+                        backToShopSearch();
+                    }
+                });
+            }
+
+            // メッセージボックスと確認ボックス関連
+            if (closeMessageBoxButton) {
+                closeMessageBoxButton.addEventListener('click', () => {
+                    if (messageBox) messageBox.classList.add('hidden');
+                });
+            }
+            if (messageBox) {
+                messageBox.addEventListener('click', (event) => {
+                    if (event.target === messageBox) {
+                        if (messageBox) messageBox.classList.add('hidden');
+                    }
+                });
+            }
+            // 確認ボックスのイベントリスナーは`showConfirmBox`関数内で動的に追加・削除されます。
+
+            // スクロール時の検索セクション縮小化
+            window.addEventListener('scroll', () => {
+                if (searchFilterSection) {
+                    if (window.scrollY > 50) {
+                        searchFilterSection.classList.add('shrunk');
+                    } else {
+                        searchFilterSection.classList.remove('shrunk');
+                    }
+                }
+            });
+
+            // フッターの©マークをクリックで管理者モードを切り替える
+            if (footerCopyright) footerCopyright.addEventListener('click', toggleAdminMode);
+
+            // 初期表示ロジック
+            applyFiltersAndSort();
+        });
+    </script>
+</body>
+</html>
